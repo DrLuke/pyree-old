@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem,\
-    QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem
+    QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem
 
-from PyQt5.QtGui import QPixmap, QBrush, QColor
-
+from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath
+from PyQt5.QtCore import QPointF
 
 class SheetView(QGraphicsView):
     class moduleManager:
@@ -49,6 +49,119 @@ class SheetView(QGraphicsView):
             ("test", "float")
         ]
 
+        class io(QGraphicsRectItem):
+            class BezierCurve(QGraphicsPathItem):
+                def __init__(self, iostart=None, ioend=None):
+                    super().__init__()
+
+                    self.iostart = iostart
+                    self.ioend = ioend
+
+                    if iostart is not None and ioend is not None:
+                        self.update()
+                    else:
+                        self.update(QPointF(0,0))
+
+                def update(self, pos=None):
+                    path = QPainterPath()
+
+                    if pos is not None:
+                        if self.ioend is None:
+                            startpos = self.iostart.pos() + self.iostart.parent.pos()
+                            endpos = pos
+                        elif self.iostart is None:
+                            startpos = pos
+                            endpos = self.ioend.pos() + self.ioend.parent.pos()
+                    else:
+                        startpos = self.iostart.pos() + self.iostart.parent.pos()
+                        endpos = self.ioend.pos() + self.ioend.parent.pos()
+
+                    controlpoint = QPointF(abs((endpos-startpos).x())*0.8, 0)
+
+                    path.moveTo(startpos)
+                    path.cubicTo(startpos + controlpoint,
+                                      endpos - controlpoint,
+                                      endpos)
+
+                    self.setPath(path)
+
+
+            def __init__(self, parent, index, iotype, iodir):
+                self.parent = parent
+                self.index = index
+                self.iotype = iotype
+                self.iodir = iodir
+                super().__init__(-8,-8,16,16, self.parent) # Size of io-boxes is 16x16
+
+                self.iobrush = QBrush(QColor(70, 70, 70, 255))
+                self.setBrush(self.iobrush)
+
+                self.newbezier = None   # Variable for temporary storage of bezier curve while it's still being dragged
+                self.bezier = []
+
+            def mousePressEvent(self, event):
+                if self.iodir == "output":
+                    self.newbezier = SheetView.BaseNode.io.BezierCurve(self, None)
+                elif self.iodir == "input":
+                    self.newbezier = SheetView.BaseNode.io.BezierCurve(None, self)
+
+                if self.newbezier is not None:
+                    self.newbezier.update(QPointF(event.pos() + self.pos() + self.parent.pos()))
+
+                self.parent.parent.scene.addItem(self.newbezier)
+
+            def mouseMoveEvent(self, event):
+                if self.newbezier is not None:
+                    self.newbezier.update(QPointF(event.pos() + self.pos() + self.parent.pos()))
+
+            def mouseReleaseEvent(self, event):
+                if self.newbezier is not None:
+                    self.parent.parent.scene.removeItem(self.newbezier)
+                self.newbezier = None
+
+                # Find out if an io box lies under the cursor
+                pos = event.pos() + self.pos() + self.parent.pos()
+                pos = self.parent.parent.mapFromScene(pos)
+                target = self.parent.parent.itemAt(pos.x(), pos.y())
+
+                # If io box is found, spawn a bezier curve
+                if target is not None and isinstance(target, SheetView.BaseNode.io):
+                    bezier = None
+                    if self.iodir == "output" and target.iodir == "input" and self.iotype == target.iotype:
+                        bezier = SheetView.BaseNode.io.BezierCurve(self, target)
+                        if not self.iotype == "exec":
+                            target.delAllBezier()
+                        elif self.iotype == "exec":
+                            if len(self.bezier) >= 1:
+                                self.delAllBezier()
+                    elif self.iodir == "input" and target.iodir == "output" and self.iotype == target.iotype:
+                        bezier = SheetView.BaseNode.io.BezierCurve(target, self)
+                        if not self.iotype == "exec":
+                            self.delAllBezier()
+                        elif self.iotype == "exec":
+                            if len(target.bezier) >= 1:
+                                target.delAllBezier()
+
+                    if bezier is not None:
+                        self.bezier.append(bezier)
+                        target.bezier.append(bezier)
+
+                        self.parent.parent.scene.addItem(bezier)
+                else:
+                    print("Target is none")
+                    # TODO: Show selection window to spawn new appropriate node
+
+            def updateBezier(self):
+                for bezier in self.bezier:
+                    bezier.update()
+
+            def delAllBezier(self):
+                for bezier in self.bezier:
+                    bezier.iostart.bezier.remove(bezier)
+                    bezier.ioend.bezier.remove(bezier)
+                    self.parent.parent.scene.removeItem(bezier)
+
+
         def __init__(self, parent):
             self.parent = parent
             self.width = 32
@@ -91,16 +204,21 @@ class SheetView(QGraphicsView):
             # Set correct positions for all text items
             self.nodetitleTextItem.setPos(-self.width / 2, -self.height / 2)
 
+            self.inputIO = []
             heightPointer = 0
             for i in range(max(len(type(self).inputDefs), len(type(self).outputDefs))):
                 try:
                     self.inputTextItems[i].setPos(-self.width / 2, -self.height / 2 + self.nodetitleTextItem.boundingRect().height() + heightPointer)
                     heightPointer += self.inputTextItems[i].boundingRect().height()
 
-                    # TODO: Spawn IO boxes here
+                    newinput = SheetView.BaseNode.io(self, i, type(self).outputDefs[i][1], "input")
+                    self.inputIO.append(newinput)
+                    newinput.setPos(-self.width / 2 - newinput.rect().width() / 2, -self.height / 2 + heightPointer + self.inputTextItems[i].boundingRect().height() / 2)
+
                 except IndexError:
                     pass
 
+            self.outputIO = []
             heightPointer = 0
             for i in range(max(len(type(self).inputDefs), len(type(self).outputDefs))):
                 try:
@@ -108,16 +226,24 @@ class SheetView(QGraphicsView):
                                                   -self.height / 2 + self.nodetitleTextItem.boundingRect().height() + heightPointer)
                     heightPointer += self.outputTextItems[i].boundingRect().height()
 
-                    # TODO: Spawn IO boxes here
+                    newoutput = SheetView.BaseNode.io(self, i, type(self).outputDefs[i][1], "output")
+                    self.outputIO.append(newoutput)
+                    newoutput.setPos(self.width / 2 + newoutput.rect().width() / 2, -self.height / 2 + heightPointer + self.outputTextItems[i].boundingRect().height() / 2)
+
                 except IndexError:
                     pass
 
             # Set rect to correct size
             self.setRect(-self.width / 2, -self.height / 2, self.width, self.height)
 
-
             # Additional stuff
             self.setFlag(QGraphicsItem.ItemIsMovable, True)
+
+        def mouseMoveEvent(self, event):
+            super().mouseMoveEvent(event)
+
+            for io in self.inputIO + self.outputIO:
+                io.updateBezier()
 
 
     def __init__(self):
@@ -129,6 +255,11 @@ class SheetView(QGraphicsView):
         self.scene.setBackgroundBrush(self.bgBrush)
 
         self.scene.addItem(SheetView.BaseNode(self))
-
+        secondnode = SheetView.BaseNode(self)
+        secondnode.setPos(200,0)
+        self.scene.addItem(secondnode)
+        self.scene.addItem(SheetView.BaseNode(self))
+        self.scene.addItem(SheetView.BaseNode(self))
+        self.scene.addItem(SheetView.BaseNode(self))
 
 

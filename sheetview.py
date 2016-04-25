@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsRectItem, QGra
     QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem
 
 from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath
-from PyQt5.QtCore import QPointF
+from PyQt5.QtCore import QPointF, Qt
+import PyQt5
 
 class SheetView(QGraphicsView):
     class moduleManager:
@@ -80,8 +81,8 @@ class SheetView(QGraphicsView):
 
                     path.moveTo(startpos)
                     path.cubicTo(startpos + controlpoint,
-                                      endpos - controlpoint,
-                                      endpos)
+                                 endpos - controlpoint,
+                                 endpos)
 
                     self.setPath(path)
 
@@ -100,15 +101,18 @@ class SheetView(QGraphicsView):
                 self.bezier = []
 
             def mousePressEvent(self, event):
-                if self.iodir == "output":
-                    self.newbezier = SheetView.BaseNode.io.BezierCurve(self, None)
-                elif self.iodir == "input":
-                    self.newbezier = SheetView.BaseNode.io.BezierCurve(None, self)
+                if event.button() == Qt.LeftButton:
+                    if self.iodir == "output":
+                        self.newbezier = SheetView.BaseNode.io.BezierCurve(self, None)
+                    elif self.iodir == "input":
+                        self.newbezier = SheetView.BaseNode.io.BezierCurve(None, self)
 
-                if self.newbezier is not None:
-                    self.newbezier.update(QPointF(event.pos() + self.pos() + self.parent.pos()))
+                    if self.newbezier is not None:
+                        self.newbezier.update(QPointF(event.pos() + self.pos() + self.parent.pos()))
 
-                self.parent.parent.scene.addItem(self.newbezier)
+                    self.parent.parent.scene.addItem(self.newbezier)
+                elif event.button() == Qt.RightButton:
+                    self.delAllBezier()
 
             def mouseMoveEvent(self, event):
                 if self.newbezier is not None:
@@ -156,19 +160,27 @@ class SheetView(QGraphicsView):
                     bezier.update()
 
             def delAllBezier(self):
-                for bezier in self.bezier:
+                beziercpy = self.bezier[:]
+                for bezier in beziercpy:
                     bezier.iostart.bezier.remove(bezier)
                     bezier.ioend.bezier.remove(bezier)
                     self.parent.parent.scene.removeItem(bezier)
 
 
-        def __init__(self, parent):
+        def __init__(self, parent, id=None):
             self.parent = parent
             self.width = 32
             self.height = 0
             super().__init__(-self.width / 2, -self.height / 2, self.width, self.height)
 
-            self.nodebrush = QBrush(QColor(100,100,100,255))
+            if id is None:
+                self.id = type(self).id
+                type(self).id = type(self).id + 1
+            else:
+                self.id = int(id)
+                type(self).id = max(type(self).id, int(id) + 1)
+
+            self.nodebrush = QBrush(QColor(100, 100, 100, 255))
             self.setBrush(self.nodebrush)
 
             # Node Title

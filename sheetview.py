@@ -113,10 +113,10 @@ class Node(QGraphicsRectItem):
 
                     self.parent.parent.scene.addItem(bezier)
             else:
-                print("Target is none")
+                pass
                 # TODO: Show selection window to spawn new appropriate node
 
-            #self.parent.parent.createRelationship() # TODO: Remove this
+            print(self.parent.parent.createRelationship()) # TODO: Remove this
 
         def updateBezier(self):
             for bezier in self.bezier:
@@ -242,7 +242,7 @@ class SheetView(QGraphicsView):
                 ids = []
                 for link in input.bezier:
                     ids.append((link.iostart.parent.id, link.iostart.index))
-                nodeRelations["inputs"].append([])
+                nodeRelations["inputs"].append(ids)
 
             nodeRelations["outputs"] = []
             for output in node.outputIO:
@@ -270,10 +270,4 @@ class SheetView(QGraphicsView):
         secondnode = Node(self, self.modman.availableNodes["drluke.testModule.TestNode"])
         secondnode.setPos(200,0)
         self.scene.addItem(secondnode)
-
-
-
-
-
-        self.createRelationship()
 

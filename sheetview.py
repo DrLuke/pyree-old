@@ -9,6 +9,7 @@ import PyQt5
 
 import baseModule
 from modules import testmodule
+from moduleManager import ModuleManager
 
 class Node(QGraphicsRectItem):
     class io(QGraphicsRectItem):
@@ -114,6 +115,8 @@ class Node(QGraphicsRectItem):
             else:
                 print("Target is none")
                 # TODO: Show selection window to spawn new appropriate node
+
+            #self.parent.parent.createRelationship() # TODO: Remove this
 
         def updateBezier(self):
             for bezier in self.bezier:
@@ -227,9 +230,30 @@ class Node(QGraphicsRectItem):
 
 class SheetView(QGraphicsView):
     def createRelationship(self):
-        print([x for x in self.scene.items() if isinstance(x, Node)])
+        relationship = {}
+        nodes = [x for x in self.scene.items() if isinstance(x, Node)]
+        for node in nodes:
+            nodeRelations = {}
 
-        print([x.id for x in self.scene.items() if isinstance(x, Node)])
+            nodeRelations["nodename"] = node.nodedata.nodeName
+
+            nodeRelations["inputs"] = []
+            for input in node.inputIO:
+                ids = []
+                for link in input.bezier:
+                    ids.append((link.iostart.parent.id, link.iostart.index))
+                nodeRelations["inputs"].append([])
+
+            nodeRelations["outputs"] = []
+            for output in node.outputIO:
+                ids = []
+                for link in output.bezier:
+                    ids.append((link.ioend.parent.id, link.iostart.index))
+                nodeRelations["outputs"].append(ids)
+
+            relationship[node.id] = nodeRelations
+
+        return relationship
 
     def __init__(self):
         self.scene = QGraphicsScene()
@@ -239,12 +263,17 @@ class SheetView(QGraphicsView):
         self.bgBrush = QBrush(self.backgroundPixmap)
         self.scene.setBackgroundBrush(self.bgBrush)
 
+        self.modman = ModuleManager()
+        print(self.modman.availableNodes)
+
         self.scene.addItem(Node(self, baseModule.BaseNode))
-        secondnode = Node(self, baseModule.BaseNode)
+        secondnode = Node(self, self.modman.availableNodes["drluke.testModule.TestNode"])
         secondnode.setPos(200,0)
         self.scene.addItem(secondnode)
 
-        #self.modman = ModuleManager()
+
+
+
 
         self.createRelationship()
 

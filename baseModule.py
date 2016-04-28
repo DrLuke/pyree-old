@@ -1,5 +1,6 @@
 import types
 
+__nodes__ = ["BaseNode"]
 
 class Pin:
     def __init__(self, name, pintype, function):

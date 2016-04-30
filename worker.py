@@ -17,6 +17,13 @@ class worker():
         self.controllerConn = None
         self.controllerAddr = None
 
+        self.glfwWorkers = {}  # Associate monitor-names with glfw workers
+
+        self.monitors = []
+        self.monitornames = []
+        self.glfwMonitorCallback()  # Retrieve current monitors
+
+
     def __del__(self):
         if self.controllerConn is not None:
             self.controllerConn.close()
@@ -80,6 +87,16 @@ class worker():
 
                 # TODO: Process commandToProcess
 
+    def glfwMonitorCallback(self):
+        # TODO: Test the FUCK out of this!
+        newMonitors = glfw.get_monitors()
+        newMonitornames = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in self.monitors]
+
+        for monitorName in self.glfwWorkers:
+            if monitorName not in newMonitornames:
+                print("Monitor " + monitorName + " doesn't exist anymore, worker is now doing whatever.")
+
+
 class glfwWorker():
     def __init__(self):
         self.window = glfw.create_window(100, 100, "Hello World", None, None)
@@ -102,10 +119,12 @@ class glfwWorker():
 
 
 if __name__ == "__main__":
-    mainWorker = worker()
-
     if not glfw.init():
         raise Exception("glfw failed to initialize")
+
+    mainWorker = worker()
+
+
 
     while 1:
         mainWorker.run()

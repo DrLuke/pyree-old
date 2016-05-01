@@ -1,4 +1,4 @@
-import types
+import types, uuid
 
 __nodes__ = ["BaseNode"]
 
@@ -22,8 +22,6 @@ class Pin:
             raise IndexError("Illegal index: " + str(index) + " (Only allowed inidices are 0 to 2)")
 
 class BaseNode:
-    id = 0  # Global ID counter. New Nodes will grab the next available ID (which is the current value of this variable)
-    # and then increment the class-wide counter by one, so the next node created has a higher ID.
     nodeName = "drluke.BaseModule.BaseNode"
     # Internal name of the Module. Must be unique to prevent problems. Optimally you would do something like
     # authorname.modulename.nodename where modulename is the name of this python file and the nodename the

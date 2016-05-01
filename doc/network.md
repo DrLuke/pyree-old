@@ -16,9 +16,17 @@ The status of a message is a quick way to indicate success or failure of anythin
 
 ## Additional Keywords
 
+### `refid (int)`
+A msgid this message is a reply to.
+
 ### `message (string)`
 A human readable string containing information about the status of things. This could, for example, tell the user why something failed.
 
 ### `command (object)`
 This is an object that will be passed to the correct glfw-object in the worker. The command object MUST contain a `monitor (string)` keyword so that the worker knows which monitor the command goes to.
 
+## Command Types
+This segment describes 
+
+### Worker Commands
+Json Schemas exchanges between the controller and worker that are meant directly for the Worker. An example for such a message would be a request to list all availabe monitors.

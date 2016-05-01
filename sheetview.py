@@ -5,6 +5,7 @@ from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath
 from PyQt5.QtCore import QPointF, Qt
 import PyQt5
 
+import uuid
 
 
 import baseModule
@@ -140,12 +141,10 @@ class Node(QGraphicsRectItem):
         self.height = 0
         super().__init__(-self.width / 2, -self.height / 2, self.width, self.height)
 
-        if id is None:
-            self.id = self.nodedata.id
-            self.nodedata.id = self.nodedata.id + 1
+        if isinstance(id, int):
+            self.id = id
         else:
-            self.id = int(id)
-            self.nodedata.id = max(self.nodedata.id, int(id) + 1)
+            self.id = uuid.uuid4().int()    # Random ID to identify node
 
         self.nodebrush = QBrush(QColor(100, 100, 100, 255))
         self.setBrush(self.nodebrush)

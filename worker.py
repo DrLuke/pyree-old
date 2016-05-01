@@ -1,6 +1,7 @@
 import time
 import glfw
 import socket
+import json
 from select import select
 
 class worker():
@@ -11,7 +12,7 @@ class worker():
         self.tcpsocket.bind(("127.0.0.1", self.port))
         self.tcpsocket.listen(10)
 
-        self.commandBuf = ""
+        self.messageBuf = ""
         self.outBuf = ""
 
         self.controllerConn = None
@@ -66,26 +67,99 @@ class worker():
                 self.controllerAddr = None
             else:   # Append incoming message to the commandbuf to be parsed later
                 try:
-                    self.commandBuf += bytes.decode(incomingData)
+                    self.messageBuf += bytes.decode(incomingData)
                 except UnicodeDecodeError:
-                    print("Error decoding message from controller:")
-                    print("----- MESSAGE: -----")
-                    print(incomingData)
-                    print(" -- MESSAGE END --")
+                    self.sendError("""Error: Failed decoding message from controller as unicode:
+----- MESSAGE: -----
+""" + str(incomingData) + """
+-- MESSAGE END --""", None)
 
         if wlist:
             self.controllerConn.send(str.encode(self.outBuf))
 
-        self.parseCommandBuf()
+        self.parseMessageBuf()
 
-    def parseCommandBuf(self):
-        if self.commandBuf:
-            splitbuf = self.commandBuf.split("\n")
+    def parseMessageBuf(self):
+        if self.messageBuf:
+            splitbuf = self.messageBuf.split("\n")
+            messageToProcess = ""
             if len(splitbuf) > 1:
-                commandToProcess = splitbuf[0]
-                self.commandBuf = str.join("\n", splitbuf[1:])
+                messageToProcess = splitbuf[0]
+                self.messageBuf = str.join("\n", splitbuf[1:])
 
-                # TODO: Process commandToProcess
+            if messageToProcess:
+                self.processMessage(messageToProcess)
+
+    def processMessage(self, command):
+        # {"msgid":123,"status":"command","command":{"monitor":"test","":""}}
+        try:
+            command = json.loads(command)
+        except json.JSONDecodeError:
+            self.sendError("""Error: Failed to decode message as json.
+            ----- MESSAGE: -----
+            """ + command + """
+            -- MESSAGE END --""", None)
+            return
+
+        try:
+            if not isinstance(command["status"], str):
+                raise TypeError
+        except KeyError:
+            self.sendError("""Error: Message has no 'status' keyword.
+            ----- MESSAGE: -----
+            """ + command + """
+            -- MESSAGE END --""", None)
+            return
+        except TypeError:
+            print("Error: 'status' value is not string")
+            print("----- MESSAGE: -----")
+            print(command)
+            print(" -- MESSAGE END --")
+            return
+
+        try:
+            if not isinstance(command["msgid"], int):
+                raise TypeError
+        except KeyError:
+            print("Error: Message has no 'msgid' keyword.")
+            print("----- MESSAGE: -----")
+            print(command)
+            print(" -- MESSAGE END --")
+            return
+
+        except TypeError:
+            print("Error: 'msgid' value is not int")
+            print("----- MESSAGE: -----")
+            print(command)
+            print(" -- MESSAGE END --")
+            return
+
+
+        if command["status"] == "command":
+            try:
+                command["command"]["monitor"]
+                try:
+                    self.glfwWorkers[command["command"]["monitor"]]
+                except KeyError:
+                    print("Error: Monitor '" + command["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
+                    return
+            except KeyError:
+                self.sendError("""Error: Command is missing 'monitor' keyword.
+                ----- MESSAGE: -----
+                """ + command + """
+                -- MESSAGE END --""", None)
+                return
+
+        elif command["status"] == "ok":
+            pass
+        elif command["status"] == "error":
+            pass
+
+    def sendError(self, message, refid):
+        print(message)    # TODO: Implement
+
+    def sendToMaster(self, message):
+        pass    # TODO: implement
 
     def glfwMonitorCallback(self):
         # TODO: Test the FUCK out of this!
@@ -112,7 +186,6 @@ class glfwWorker():
             # TODO: Run node code HERE
 
             glfw.swap_buffers(self.window)
-
             glfw.poll_events()
 
             return 0

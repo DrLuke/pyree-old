@@ -26,7 +26,10 @@ A human readable string containing information about the status of things. This 
 This is an object that will be passed to the correct glfw-object in the worker. The command object MUST contain a `monitor (string)` keyword so that the worker knows which monitor the command goes to.
 
 ## Command Types
-This segment describes 
+This segment describes different command schemas that can be sent from the controller to the workers
 
 ### Worker Commands
-Json Schemas exchanges between the controller and worker that are meant directly for the Worker. An example for such a message would be a request to list all availabe monitors.
+Command Schemas exchanges between the controller and worker that are meant directly for the Worker. An example for such a message would be a request to list all availabe monitors.
+
+### GLFW Commands
+Command schemas exchanged between the controller and glfw-workers. 

@@ -144,7 +144,7 @@ class Node(QGraphicsRectItem):
         if isinstance(id, int):
             self.id = id
         else:
-            self.id = uuid.uuid4().int()    # Random ID to identify node
+            self.id = uuid.uuid4().hex    # Random ID to identify node
 
         self.nodebrush = QBrush(QColor(100, 100, 100, 255))
         self.setBrush(self.nodebrush)
@@ -230,6 +230,10 @@ class Node(QGraphicsRectItem):
 class SheetView(QGraphicsView):
     def createRelationship(self):
         relationship = {}
+
+        relationship["initnode"] = self.initnode.id
+        relationship["loopnode"] = self.loopnode.id
+
         nodes = [x for x in self.scene.items() if isinstance(x, Node)]
         for node in nodes:
             nodeRelations = {}
@@ -240,14 +244,14 @@ class SheetView(QGraphicsView):
             for input in node.inputIO:
                 ids = []
                 for link in input.bezier:
-                    ids.append((link.iostart.parent.id, link.iostart.index))
+                    ids.append([link.iostart.parent.id, link.iostart.index])
                 nodeRelations["inputs"].append(ids)
 
             nodeRelations["outputs"] = []
             for output in node.outputIO:
                 ids = []
                 for link in output.bezier:
-                    ids.append((link.ioend.parent.id, link.iostart.index))
+                    ids.append([link.ioend.parent.id, link.iostart.index])
                 nodeRelations["outputs"].append(ids)
 
             relationship[node.id] = nodeRelations
@@ -263,10 +267,12 @@ class SheetView(QGraphicsView):
         self.scene.setBackgroundBrush(self.bgBrush)
 
         self.modman = ModuleManager()
-        print(self.modman.availableNodes)
 
-        self.scene.addItem(Node(self, baseModule.BaseNode))
-        secondnode = Node(self, self.modman.availableNodes["drluke.testModule.TestNode"])
-        secondnode.setPos(200,0)
-        self.scene.addItem(secondnode)
+        self.initnode = Node(self, self.modman.availableNodes["drluke.builtin.Init"])
+        self.loopnode = Node(self, self.modman.availableNodes["drluke.builtin.Loop"])
+        self.scene.addItem(self.initnode)
+        self.scene.addItem(self.loopnode)
+        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
+        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
+        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
 

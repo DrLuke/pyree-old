@@ -3,6 +3,9 @@ import glfw
 import socket
 import json
 from select import select
+import traceback
+
+from moduleManager import ModuleManager
 
 class worker():
     def __init__(self):
@@ -21,7 +24,8 @@ class worker():
         self.glfwWorkers = {}  # Associate monitor-names with glfw workers
 
         self.monitors = []
-        self.monitornames = []
+        self.monitornames = []  # TODO: Reduce to monitorDict
+        self.monitorDict = {}
         self.glfwMonitorCallback()  # Retrieve current monitors
 
 
@@ -79,6 +83,9 @@ class worker():
 
         self.parseMessageBuf()
 
+        for key in self.glfwWorkers:
+            self.glfwWorkers[key].run()
+
     def parseMessageBuf(self):
         if self.messageBuf:
             splitbuf = self.messageBuf.split("\n")
@@ -90,89 +97,106 @@ class worker():
             if messageToProcess:
                 self.processMessage(messageToProcess)
 
-    def processMessage(self, command):
-        # {"msgid":123,"status":"command","command":{"monitor":"test","":""}}
+    def processMessage(self, message):
+        # {"msgid":123,"status":"command","command":{"monitor":"DVI-I-1","":""}}
         try:
-            command = json.loads(command)
+            message = json.loads(message)
         except json.JSONDecodeError:
             self.sendError("""Error: Failed to decode message as json.
-            ----- MESSAGE: -----
-            """ + command + """
-            -- MESSAGE END --""", None)
+----- MESSAGE: -----
+""" + message + """
+-- MESSAGE END --""", None)
             return
 
         try:
-            if not isinstance(command["status"], str):
+            if not isinstance(message["status"], str):
                 raise TypeError
         except KeyError:
             self.sendError("""Error: Message has no 'status' keyword.
-            ----- MESSAGE: -----
-            """ + command + """
-            -- MESSAGE END --""", None)
+----- MESSAGE: -----
+""" + str(message) + """
+-- MESSAGE END --""", None)
             return
         except TypeError:
             print("Error: 'status' value is not string")
             print("----- MESSAGE: -----")
-            print(command)
+            print(message)
             print(" -- MESSAGE END --")
             return
 
         try:
-            if not isinstance(command["msgid"], int):
+            if not isinstance(message["msgid"], int):
                 raise TypeError
         except KeyError:
             print("Error: Message has no 'msgid' keyword.")
             print("----- MESSAGE: -----")
-            print(command)
+            print(message)
             print(" -- MESSAGE END --")
             return
 
         except TypeError:
             print("Error: 'msgid' value is not int")
             print("----- MESSAGE: -----")
-            print(command)
+            print(message)
             print(" -- MESSAGE END --")
             return
 
 
-        if command["status"] == "command":
+        if message["status"] == "command":
             try:
-                command["command"]["monitor"]
+                message["command"]["monitor"]
                 try:
-                    self.glfwWorkers[command["command"]["monitor"]]
+                    self.glfwWorkers[message["command"]["monitor"]]
                 except KeyError:
-                    print("Error: Monitor '" + command["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
+                    if message["command"]["monitor"] in self.monitornames:
+                        self.glfwWorkers[message["command"]["monitor"]] = glfwWorker(self, self.monitorDict[message["command"]["monitor"]])
+                    print("Error: Monitor '" + message["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
                     return
+                self.glfwWorkers[message["command"]["monitor"]].receiveCommand(message)
             except KeyError:
                 self.sendError("""Error: Command is missing 'monitor' keyword.
                 ----- MESSAGE: -----
-                """ + command + """
+                """ + str(message) + """
                 -- MESSAGE END --""", None)
                 return
 
-        elif command["status"] == "ok":
+        elif message["status"] == "ok":
             pass
-        elif command["status"] == "error":
+        elif message["status"] == "error":
             pass
 
     def sendError(self, message, refid):
         print(message)    # TODO: Implement
 
-    def sendToMaster(self, message):
+    def sendToController(self, message):
         pass    # TODO: implement
 
     def glfwMonitorCallback(self):
         # TODO: Test the FUCK out of this!
         newMonitors = glfw.get_monitors()
-        newMonitornames = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in self.monitors]
+        newMonitornames = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in newMonitors]
 
         for monitorName in self.glfwWorkers:
             if monitorName not in newMonitornames:
                 print("Monitor " + monitorName + " doesn't exist anymore, worker is now doing whatever.")
 
+        self.monitors = newMonitors
+        self.monitornames = newMonitornames
+
+        for monitor in self.monitors:
+            self.monitorDict[bytes.decode(glfw.get_monitor_name(monitor))] = monitor
+
 
 class glfwWorker():
-    def __init__(self):
+    def __init__(self, parent, monitor):
+        self.parent = parent
+        self.monitor = monitor
+
+        self.modman = ModuleManager()
+
+        self.currentSheet = None
+        self.sheetObjects = {}
+
         self.window = glfw.create_window(100, 100, "Hello World", None, None)
         if not self.window:
             raise Exception("Creating window failed")
@@ -183,13 +207,62 @@ class glfwWorker():
             return 1
         else:
 
-            # TODO: Run node code HERE
+            if self.currentSheet is not None:
+                self.sheetObjects[self.currentSheet["loopnode"]].run()
 
             glfw.swap_buffers(self.window)
             glfw.poll_events()
 
             return 0
 
+    def receiveCommand(self, message):
+        sheetCommand = False
+        try:
+            message["command"]["sheet"]
+            sheetCommand = True
+        except KeyError:
+            pass
+        if sheetCommand:
+            try:
+                self.updateSheet(message["command"]["sheet"])
+            except:
+                pass    # TODO: print exception to controller (traceback.print_exc())
+
+        print("Received command:" + str(message))    # TODO: Check command validity, process command further
+
+    def updateSheet(self, sheet):
+        print("Updating Sheet")
+        newSheetObjects = {}
+        try:
+            for id in sheet:
+                print(" --")
+                print(id)
+                print(sheet[id])
+                if(id == "initnode" or id == "loopnode"):
+                    continue
+                idExists = False
+                try:
+                    self.sheetObjects[id]
+                    idExists = True
+                except KeyError:
+                    print("Id doesn't exist")
+
+                if idExists:
+                    newSheetObjects[id] = self.sheetObjects[id]
+                else:
+                    newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)
+
+            # No exceptions? replace old sheet by new sheet
+            print(newSheetObjects)
+            self.sheetObjects = newSheetObjects
+            self.currentSheet = sheet
+
+            # Trigger initnode
+            self.sheetObjects[self.currentSheet["initnode"]].run()
+        except:
+            print("Exception during sheet update:")
+            print(traceback.print_exc())
+            pass    # TODO: Print exception to master
 
 if __name__ == "__main__":
     if not glfw.init():
@@ -197,10 +270,8 @@ if __name__ == "__main__":
 
     mainWorker = worker()
 
-
-
     while 1:
         mainWorker.run()
-        time.sleep(0)
+        time.sleep(0.001)
 else:
     raise Exception("Slave must be run as main")

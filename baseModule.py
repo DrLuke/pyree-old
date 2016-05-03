@@ -31,15 +31,45 @@ class BaseNode:
     desc = "This is the default node. It should not be accessible from within the editor!"  # Figure it out yourself
     placable = False  # Node prototypes like the baseNode do not necessarily have to be placable, as they might just
     # serve as a prototype to inherit from.
+    tags = ["basenode"]
 
-    def test(self):
-        print("test success")
+    def __init__(self, runtime, relations, objid):
+        self.runtime = runtime
+        self.relations = relations
+        self.id = objid
+
+        self.init()
+
+    def fireExec(self, index):
+        try:
+            targetObj = self.runtime.sheetObjects[self.relations["outputs"][index][0]]  # Obtain target object
+            targetFun = type(targetObj).inputDefs[self.relations["outputs"][index][1]].function  # Obtain function
+
+            targetFun(targetObj)  # Call function for object
+            return 0
+        except IndexError:
+            return 1    # TODO: Improve this to only find keyerrors on self.relations["outputs"][index][0]
+
+    def getInput(self, index):
+        try:
+            targetObj = self.runtime.sheetObjects[self.relations["inputs"][index][0]]  # Obtain target object
+            targetFun = type(targetObj).outputDefs[self.relations["inputs"][index][1]].function  # Obtain function
+
+            return targetFun(targetObj)
+        except IndexError:
+            return None     # TODO: Improve this to only find keyerrors on self.relations["outputs"][index][0]
+
+
+
+    def init(self):
+        pass
+
+    def run(self):
+        pass
 
     # Input and Output tuples: (displayname of IO, type of IO). Must be strings or you will have a bad time
     inputDefs = [
-        Pin("exec", "exec", test),
     ]
 
     outputDefs = [
-        Pin("exec", "exec", test),
     ]

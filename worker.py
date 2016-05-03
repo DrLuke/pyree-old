@@ -6,6 +6,7 @@ from select import select
 import traceback
 
 from moduleManager import ModuleManager
+from timeout import Timeout
 
 class worker():
     def __init__(self):
@@ -84,7 +85,12 @@ class worker():
         self.parseMessageBuf()
 
         for key in self.glfwWorkers:
-            self.glfwWorkers[key].run()
+            try:
+                with Timeout(1):
+                    self.glfwWorkers[key].run()
+            except Timeout.Timeout:
+                print("Error: run() for worker '" + glfw.get_monitor_name(self.glfwWorkers[key].monitor) + "' timed out after 1 second.")   # TODO: send error message to controller
+
 
     def parseMessageBuf(self):
         if self.messageBuf:

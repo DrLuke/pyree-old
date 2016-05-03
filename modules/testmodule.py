@@ -11,21 +11,33 @@ class TestNode(BaseNode):
     desc = "This is a node for testing porpoises."
     placable = True
 
-    def test(self):
+    def init(self):
+        self.i = 0
+        print("Initializing testfun")
+
+    def run(self):
         print("testfunction triggered")
+        print("iteration: " + str(self.i))
+        self.i += 1
+
+        self.fireExec(0)
+
+    def getOutstring(self):
+        return "Outstring test, iteration value for lulz: " + str(self.i)
+
+    def getExecdata(self):
+        return None
+
+    def getInfloat(self):
+        self.infloat = 1.0  # TODO: make it actually get the float
 
     inputDefs = [
-        Pin("exec", "exec", test),
-        Pin("test", "float", test),
-        Pin("anothertest", "float", test)
+        Pin("exec", "exec", run),
+        Pin("infloat", "float", getInfloat)
     ]
 
     outputDefs = [
-        Pin("exec", "exec", test),
-        Pin("long", "string", test),
-        Pin("test", "float", test)
+        Pin("exec", "exec", getExecdata),
+        Pin("outstring", "string", getOutstring)
     ]
-
-    def init(self):
-        pass
 

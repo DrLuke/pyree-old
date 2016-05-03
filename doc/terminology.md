@@ -34,3 +34,4 @@ Part of the worker program that steers the communication between the controller 
 
 ### Glfw-worker
 A single glfw instance tied to a monitor. It can receive commands by the controller and display graphics. It will spawn a new glfw window that will run in fullscreen on the assigned monitor.
+It directly reads in the sheet relationship diagram and creates objects from the nodes (An object is basically just the actual code running, represented by a node in the sheet editor).

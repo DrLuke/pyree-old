@@ -119,6 +119,7 @@ class Worker:
                 print("Accpeted by worker")
                 self.createTreeitem()
                 self.requestMonitors()
+                self.workerTreeItem.setExpanded(True)   # Automatically expand it on creation
 
         # Parse error messages
         if message["status"][0] == "error":
@@ -135,6 +136,7 @@ class Worker:
                     if "datarequest" in self.requestJar[message["refid"]] and "datareply" in message["reply"]:  # Request was a datarequest
                         if self.requestJar[message["refid"]]["datarequest"] == "monitors":  # Request was a request for monitors
                             self.monitors = message["reply"]["datareply"]
+                            self.handleMonitors()
                             del self.requestJar[message["refid"]]  # Delete request from requestJar
 
                 else:
@@ -142,15 +144,19 @@ class Worker:
                     return
 
     def requestMonitors(self):
-        request = {"msgid": uuid.uuid4().int, "status":["command", 0], "command":{"datarequest":"monitors"}}
+        request = {"msgid": uuid.uuid4().hex, "status":["command", 0], "command":{"datarequest":"monitors"}}
         self.requestJar[request["msgid"]] = request["command"]
 
         self.connection.outbuf += json.dumps(request) + "\n"
 
     def handleMonitors(self):
+        # TODO: Actually implement this correctly (add new monitors, mark stale monitors)
         for monitor in self.monitors:
             if monitor not in self.monitorState:
-                self.monitorState[monitor] = {"state": "new", "treeitem": None}     # TODO: create new treeitem for monitor
+                monitorTreeitem = QTreeWidgetItem()
+                monitorTreeitem.setText(0, monitor)
+                self.workerTreeItem.addChild(monitorTreeitem)
+                self.monitorState[monitor] = {"state": "new", "treeitem": monitorTreeitem}     # TODO: create new treeitem for monitor
 
 
 

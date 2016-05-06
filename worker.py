@@ -133,7 +133,7 @@ class worker():
             return
 
         try:
-            if not isinstance(message["msgid"], int):
+            if not isinstance(message["msgid"], str):
                 raise TypeError
         except KeyError:
             print("Error: Message has no 'msgid' keyword.")

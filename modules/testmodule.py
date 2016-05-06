@@ -6,7 +6,7 @@ from baseModule import BaseNode, Pin
 __nodes__ = ["TestNode"]
 
 class TestNode(BaseNode):
-    nodeName = "drluke.testModule.TestNode"
+    nodeName = "drluke.testmodule.TestNode"
     name = "Testnode"
     desc = "This is a node for testing porpoises."
     placable = True

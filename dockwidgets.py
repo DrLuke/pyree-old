@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QDockWidget, QTreeWidget, QWidget, QGridLayout, QFormLayout, QPushButton, QComboBox, QSizePolicy, QFrame
+from PyQt5.QtWidgets import QDockWidget, QTreeWidget, QWidget, QGridLayout, QFormLayout, QPushButton, QComboBox, QSizePolicy, QFrame, QLineEdit
 from PyQt5.QtCore import Qt
 
 
@@ -44,3 +44,42 @@ class WorkerDockWidget(QDockWidget):
         # Set dockwidget content to main widget
         self.setWidget(self.mainWidget)
 
+class SheetDockWidget(QDockWidget):
+    def __init__(self):
+        super().__init__("Sheets")
+
+        # Create main widget for content and layout of Dockwidget
+        self.mainWidget = QWidget()
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.mainWidgetLayout = QGridLayout(self.mainWidget)
+        self.mainWidgetLayout.setSizeConstraint(QGridLayout.SetDefaultConstraint)
+
+        # - Create frame for button and entry
+        self.newSheetWidget = QWidget(self.mainWidget)
+        #self.newConnWidget.setFrameStyle(QFrame.Panel | QFrame.Raised)
+        self.newSheetWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.newSheetWidgetLayout = QFormLayout(self.newSheetWidget)
+        self.newSheetWidgetLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.newSheetButton = QPushButton(self.newSheetWidget)
+        self.newSheetButton.setText("Create")
+        self.newSheetButton.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.newSheetWidgetLayout.setWidget(0, QFormLayout.LabelRole, self.newSheetButton)
+
+        self.newSheetLineedit = QLineEdit(self.newSheetWidget)
+        #self.newSheetLineedit.setEditable(True)
+        self.newSheetLineedit.setToolTip("Enter name for new sheet")
+        self.newSheetLineedit.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.newSheetWidgetLayout.setWidget(0, QFormLayout.FieldRole, self.newSheetLineedit)
+
+        self.mainWidgetLayout.addWidget(self.newSheetWidget, 0, 0, 1, 1)
+
+        # - Add worker treeview to content
+        self.workerTree = QTreeWidget(self.mainWidget)
+        self.workerTree.setColumnCount(1)
+
+        self.workerTree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.mainWidgetLayout.addWidget(self.workerTree, 1, 0, 1, 1)
+
+        # Set dockwidget content to main widget
+        self.setWidget(self.mainWidget)

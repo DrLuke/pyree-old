@@ -5,7 +5,7 @@ This document outlines the network protocol used by gpnshader.
 Communication happens by exchanging json schemas via TCP. Every schema must contain the following keywords in the topmost object:
 
 #### `msgid (int)`
-Unique message ID generated with the python 3 [uuid library](https://docs.python.org/3/library/uuid.html#uuid.uuid1), and then [converted](https://docs.python.org/3/library/uuid.html#uuid.UUID.int) to an integer.  
+Unique message ID generated with the python 3 [uuid library](https://docs.python.org/3/library/uuid.html#uuid.uuid4), and then [converted](https://docs.python.org/3/library/uuid.html#uuid.UUID.int) to an integer.  
 The msgid can be used to reference messages in a reply to commands. This way even delayed replies can still be correlated with the original request. This in turn means that all messages that expect a reply must store their original request for a reasonable amount of time (e.g. 1 minute).
 
 #### `status (array)`
@@ -16,9 +16,10 @@ The status of a message is a quick way to indicate success or failure of anythin
 * `error`: Something went wrong, check `message` for a human readable errormessage.
 **  `0`: Something for which no errorcode exists (yet) went wrong. Refer to the `message` field.
 **  `1`: Connection Refused because this worker already has a controller
-* `command`: This message is a command and thus must have the `command` and `monitor` keywords set to valid values.
+* `command`: This message is a command and thus must have the `command` and optionally `monitor` keywords set to valid values.
 **  `0`: 
 * `reply`: This message is a reply for a previous request. Replies must have `refid` set.
+**  `0`: Reply generation successful
 
 ## Additional Keywords
 
@@ -38,7 +39,7 @@ This segment describes different command schemas that can be sent from the contr
 Command Schemas exchanges between the controller and worker that are meant directly for the Worker. An example for such a message would be a request to list all availabe monitors.
 
 #### `datarequest (string)`
-This is a request for data. The reply to this request is outlined in `datareply (array of strings)` Valid values and replies are:
+This is a request for data. The reply to this request is outlined in `datareply (array of strings)` Valid requests and their replies are:
 * `monitors`: The controller requests an array of strings of all available monitors (e.g. `["DVI-I-1", "DVI-I-2"]`)
 
 
@@ -56,5 +57,5 @@ If `sheet` is set, all other commands in this message will be ignored.
 ## Reply Types
 This section describes different reply messages. This could for example contain the available monitors after the controller requested them. Reply messages must have refid set.
 
-#### `datareply (array of strings)`
-A reply to a `datarequest`. This must be an array of strings, even if it's only one string. For example, a reply for a `monitors` request would be `["DVI-I-1", "DVI-I-2"]`.
+#### `datareply (type specified by `datarequest`)`
+A reply to a `datarequest`. For example, a reply for a `monitors` request would be `["DVI-I-1", "DVI-I-2"]`.

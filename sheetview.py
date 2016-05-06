@@ -7,7 +7,6 @@ import PyQt5
 
 import uuid
 
-
 import baseModule
 from modules import testmodule
 from moduleManager import ModuleManager
@@ -117,8 +116,6 @@ class Node(QGraphicsRectItem):
                 pass
                 # TODO: Show selection window to spawn new appropriate node
 
-            print(self.parent.parent.createRelationship()) # TODO: Remove this
-
         def updateBezier(self):
             for bezier in self.bezier:
                 bezier.update()
@@ -141,7 +138,7 @@ class Node(QGraphicsRectItem):
         self.height = 0
         super().__init__(-self.width / 2, -self.height / 2, self.width, self.height)
 
-        if isinstance(id, int):
+        if id is not None:
             self.id = id
         else:
             self.id = uuid.uuid4().hex    # Random ID to identify node
@@ -220,6 +217,18 @@ class Node(QGraphicsRectItem):
         # Additional stuff
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
 
+    def delete(self):
+        for io in self.inputIO + self.outputIO:
+            io.delAllBezier()
+            io.parent = None
+            io.bezier = None
+
+        del self.inputIO
+        del self.outputIO
+
+    def __del__(self):
+        print("del: " + str(self))
+
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
 
@@ -238,6 +247,7 @@ class SheetView(QGraphicsView):
         for node in nodes:
             nodeRelations = {}
 
+            nodeRelations["pos"] = [node.pos().x(), node.pos().y()]
             nodeRelations["nodename"] = node.nodedata.nodeName
 
             nodeRelations["inputs"] = []
@@ -258,6 +268,61 @@ class SheetView(QGraphicsView):
 
         return relationship
 
+    def newSheet(self):
+        nodes = [x for x in self.scene.items() if isinstance(x, Node)]
+        for node in nodes:
+            node.delete()
+        nodes = None
+        self.scene.clear()
+        self.initnode = None
+        self.loopnode = None
+
+        self.initnode = Node(self, self.modman.availableNodes["drluke.builtin.Init"])
+        self.loopnode = Node(self, self.modman.availableNodes["drluke.builtin.Loop"])
+        self.loopnode.setPos(0, 200)
+        self.scene.addItem(self.initnode)
+        self.scene.addItem(self.loopnode)
+
+        self.scene.addItem( Node(self, self.modman.availableNodes["drluke.testmodule.TestNode"]))
+        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testmodule.TestNode"]))
+
+    def loadRelationship(self, sheet):
+        print(sheet)
+        nodedict = {}   # Temporary dict to associate nodes by their ID for connecting the links
+        for id in sheet:
+            if not (id == "initnode" or id == "loopnode"):
+                # TODO: Add fallback for unavailble nodes
+                newNode = Node(self, self.modman.availableNodes[sheet[id]["nodename"]], id)
+                newNode.setPos(sheet[id]["pos"][0], sheet[id]["pos"][1])
+                self.scene.addItem(newNode)
+                nodedict[id] = newNode  # Add node to temporary dict
+
+
+                if id == sheet["initnode"]:
+                    self.initnode = newNode
+                elif id == sheet["loopnode"]:
+                    self.loopnode = newNode
+
+        # Feel free to bash my head in for the following code
+        # TODO: Make this less horrible
+        for id in sheet:
+            if not (id == "initnode" or id == "loopnode"):
+                node = nodedict[id]
+
+                for io in sheet[id]["outputs"]:
+                    ioindx = sheet[id]["outputs"].index(io)
+                    for link in sheet[id]["outputs"][ioindx]:
+                        if len(link) == 2:
+                            destNodeId = link[0]
+                            destIoIndex = link[1]
+
+                            newlink = Node.io.BezierCurve(node.outputIO[ioindx], nodedict[destNodeId].inputIO[destIoIndex])
+
+                            node.outputIO[ioindx].bezier.append(newlink)
+                            nodedict[destNodeId].inputIO[destIoIndex].bezier.append(newlink)
+
+                            self.scene.addItem(newlink)
+
     def __init__(self):
         self.scene = QGraphicsScene()
         super().__init__(self.scene)
@@ -268,11 +333,10 @@ class SheetView(QGraphicsView):
 
         self.modman = ModuleManager()
 
-        self.initnode = Node(self, self.modman.availableNodes["drluke.builtin.Init"])
-        self.loopnode = Node(self, self.modman.availableNodes["drluke.builtin.Loop"])
-        self.scene.addItem(self.initnode)
-        self.scene.addItem(self.loopnode)
-        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
-        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
-        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testModule.TestNode"]))
+        self.initnode = None
+        self.loopnode = None
+
+        #self.newSheet()
+        #self.loadSheet(json.loads("""{"loopnode":"85a1abbd6d86462bbdad9639086b503e","85a1abbd6d86462bbdad9639086b503e":{"inputs":[],"nodename":"drluke.builtin.Loop","pos":[0,144],"outputs":[[]]},"52667c109d734f8883c74cf1a659b675":{"inputs":[],"nodename":"drluke.builtin.Init","pos":[0,0],"outputs":[[]]},"initnode":"52667c109d734f8883c74cf1a659b675"}"""))
+        self.loadRelationship(json.loads("""{"loopnode":"4e742e8ccb554213a9efe10431400637","c1e809fe45f340bfa1e68ed0a5429fb0":{"outputs":[[],[]],"pos":[431,108],"inputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]],[]],"nodename":"drluke.testmodule.TestNode"},"dbb2a2812a4d42209e6b7aa635fca477":{"outputs":[[["c1e809fe45f340bfa1e68ed0a5429fb0",0]],[]],"pos":[187,85],"inputs":[[["d7e6f0fe49fd4c598fdd4503bcffbd9c",0],["4e742e8ccb554213a9efe10431400637",0]],[]],"nodename":"drluke.testmodule.TestNode"},"d7e6f0fe49fd4c598fdd4503bcffbd9c":{"outputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]]],"pos":[0,0],"inputs":[],"nodename":"drluke.builtin.Init"},"4e742e8ccb554213a9efe10431400637":{"outputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]]],"pos":[0,200],"inputs":[],"nodename":"drluke.builtin.Loop"},"initnode":"d7e6f0fe49fd4c598fdd4503bcffbd9c"}"""))
 

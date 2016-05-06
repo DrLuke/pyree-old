@@ -4,6 +4,7 @@ import socket
 import json
 from select import select
 import traceback
+import uuid
 
 from moduleManager import ModuleManager
 from timeout import Timeout
@@ -43,13 +44,14 @@ class worker():
             if self.controllerConn is not None:
                 rlist, wlist, elist = select([], [conn], [], 0)
                 if wlist:
-                    conn.send(b'{"status": "error", "message": "Already got controller."}\n')
+                    conn.send(b'{"status": ["error", 1], "message": "Already got controller."}\n')
                 print("Rejecting connection from " + str(self.controllerAddr) + ".")
                 conn.close()
             else:
                 print("Accepting connection from " + str(self.controllerAddr) + ".")
                 self.controllerConn = conn
                 self.controllerAddr = addr
+                conn.send(b'{"status": ["ok", 1], "message": "Connection accepted."}\n')
 
         # See if anything is to be sent to controller
         if self.outBuf:
@@ -115,7 +117,7 @@ class worker():
             return
 
         try:
-            if not isinstance(message["status"], str):
+            if not isinstance(message["status"][0], str):
                 raise TypeError
         except KeyError:
             self.sendError("""Error: Message has no 'status' keyword.
@@ -148,34 +150,29 @@ class worker():
             return
 
 
-        if message["status"] == "command":
-            try:
-                message["command"]["monitor"]
-                try:
-                    self.glfwWorkers[message["command"]["monitor"]]
-                except KeyError:
-                    if message["command"]["monitor"] in self.monitornames:
+        if message["status"][0] == "command":
+            if "command" in message:
+                if "monitor" in message["command"]:
+                    if message["command"]["monitor"] in self.glfwWorkers:
+                        self.glfwWorkers[message["command"]["monitor"]].receiveCommand(message)
+                    else:
+                        print("Error: Monitor '" + message["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
                         self.glfwWorkers[message["command"]["monitor"]] = glfwWorker(self, self.monitorDict[message["command"]["monitor"]])
-                    print("Error: Monitor '" + message["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
-                    return
-                self.glfwWorkers[message["command"]["monitor"]].receiveCommand(message)
-            except KeyError:
-                self.sendError("""Error: Command is missing 'monitor' keyword.
-                ----- MESSAGE: -----
-                """ + str(message) + """
-                -- MESSAGE END --""", None)
-                return
+                elif "datarequest" in message["command"]:
+                    if message["command"]["datarequest"] == "monitors":
+                        self.sendToController(json.dumps({"msgid": uuid.uuid4().hex, "refid": message["msgid"], "status": ["reply", 0], "reply": {"datareply": self.monitornames}}))
 
-        elif message["status"] == "ok":
+        elif message["status"][0] == "ok":
             pass
-        elif message["status"] == "error":
+        elif message["status"][0] == "error":
             pass
 
     def sendError(self, message, refid):
         print(message)    # TODO: Implement
 
     def sendToController(self, message):
-        pass    # TODO: implement
+        print("Sending to controller: " + str(message))
+        self.controllerConn.send(str.encode(str(message) + "\n"))
 
     def glfwMonitorCallback(self):
         # TODO: Test the FUCK out of this!

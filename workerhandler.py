@@ -1,9 +1,13 @@
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QTreeWidgetItem
-
 import socket
 from select import select
 import re
+import json
+import uuid
+
+from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import QTreeWidgetItem
+
+
 
 class Connection():
     def __init__(self, ip, port, callback):
@@ -45,13 +49,25 @@ class Worker:
     def __init__(self, parent):
         self.parent = parent
 
+        self.workerAccepted = False     # Whether or not the worker accepted the controller
+        self.workerTreeItem = None
+
+        self.monitorState = {}
+
         self.inbuf = ""
         self.connection = None
+
+        self.requestJar = {}
+
+        # Refresh monitors every 5 seconds
+        self.monitorTimer = QTimer()
+        self.monitorTimer.timeout.connect(self.requestMonitors)
+        self.monitorTimer.start(5000)
 
     def messagecallback(self, message):
         self.inbuf += message
 
-        print(self.inbuf)
+        self.parseInbuf()
 
     def createTreeitem(self):
         self.workerTreeItem = QTreeWidgetItem()
@@ -59,7 +75,84 @@ class Worker:
         self.parent.workerDockWidget.workerTree.addTopLevelItem(self.workerTreeItem)
 
     def __del__(self):
-        self.parent.workerDockWidget.workerTree.invisibleRootItem().removeChild(self.workerTreeItem)
+        if self.workerTreeItem is not None:
+            self.parent.workerDockWidget.workerTree.invisibleRootItem().removeChild(self.workerTreeItem)
+
+    def parseInbuf(self):
+        if self.inbuf:
+            splitbuf = self.inbuf.split("\n")
+            messageToProcess = ""
+            if len(splitbuf) > 1:
+                messageToProcess = splitbuf[0]
+                self.inbuf = str.join("\n", splitbuf[1:])
+
+            if messageToProcess:
+                self.processMessage(messageToProcess)
+
+    def processMessage(self, message):
+        try:
+            message = json.loads(message)
+        except json.JSONDecodeError:
+            return  # TODO: output error
+
+        try:
+            if not (isinstance(message["status"][0], str) and isinstance(message["status"][1], int)):
+                raise TypeError()
+        except KeyError:
+            return  # TODO: output error
+        except TypeError:
+            return  # TODO: output error
+        except IndexError:
+            return
+
+        # TODO: Check for msgid
+
+        # Parse ok messages
+        if message["status"][0] == "ok":
+            if message["status"][1] == 0:
+                if "message" in message:
+                    print("Warning: Received unknown 'ok' code: " + str(message["message"]))
+                else:
+                    print("Warning: Received unknown 'ok' code. No human readable message included.")
+            elif message["status"][1] == 1:
+                self.workerAccepted = True
+                print("Accpeted by worker")
+                self.createTreeitem()
+                self.requestMonitors()
+
+        # Parse error messages
+        if message["status"][0] == "error":
+            if message["status"][1] == 0:
+                print("Received")
+            elif message["status"][1] == 1:
+                self.workerAccepted = False
+                print("Rejected by worker")
+
+        # Parse reply messages
+        if "reply" in message and "refid" in message:
+            if "datareply" in message["reply"]: # Handle datareplies
+                if message["refid"] in self.requestJar:     # Check if reply can be correlated to a request
+                    if "datarequest" in self.requestJar[message["refid"]] and "datareply" in message["reply"]:  # Request was a datarequest
+                        if self.requestJar[message["refid"]]["datarequest"] == "monitors":  # Request was a request for monitors
+                            self.monitors = message["reply"]["datareply"]
+                            del self.requestJar[message["refid"]]  # Delete request from requestJar
+
+                else:
+                    print("Error: Unknown refid in reply: " + str(message["refid"]))
+                    return
+
+    def requestMonitors(self):
+        request = {"msgid": uuid.uuid4().int, "status":["command", 0], "command":{"datarequest":"monitors"}}
+        self.requestJar[request["msgid"]] = request["command"]
+
+        self.connection.outbuf += json.dumps(request) + "\n"
+
+    def handleMonitors(self):
+        for monitor in self.monitors:
+            if monitor not in self.monitorState:
+                self.monitorState[monitor] = {"state": "new", "treeitem": None}     # TODO: create new treeitem for monitor
+
+
 
 class WorkerHandler():
     def __init__(self, workerDockWidget):
@@ -76,16 +169,19 @@ class WorkerHandler():
 
         self.workerDockWidget.newConnButton.clicked.connect(self.buttonClicked)
 
-
-
     def buttonClicked(self):
         newIp = self.workerDockWidget.newConnCombobox.currentText()
         if newIp:
-            if ":" in newIp:
-                match = re.search("(.*?):([\d]{1,8})", newIp)
-                self.newWorker(match.group(1), match.group(2))
-            else:
-                self.newWorker(newIp, 31337)
+            try:
+                if ":" in newIp:
+                    match = re.search("(.*?):([\d]{1,8})", newIp)
+                    self.newWorker(match.group(1), int(match.group(2)))
+                else:
+                    self.newWorker(newIp, 31337)
+            except IndexError:  # TODO: Maybe do something better here
+                pass
+            except AttributeError:
+                pass
 
     def newWorker(self, ip, port):
         newWorker = Worker(self)
@@ -93,7 +189,6 @@ class WorkerHandler():
         newWorker.connection = newconn
 
         if newconn.valid:
-            newWorker.createTreeitem()  # TODO: Move this into worker, let it create this itself once "ok" response is recvd
             #self.workers[str(ip) + ":" + str(port)] = newWorker
             self.connections[newconn.socket] = (newconn, newWorker)
 

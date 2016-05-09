@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QDockWidget, QTreeWidget, QWidget, QGridLayout, QFormLayout, QPushButton, QComboBox, QSizePolicy, QFrame, QLineEdit
+from PyQt5.QtWidgets import QDockWidget, QTreeWidget, QWidget, QGridLayout, QFormLayout, QPushButton, QComboBox, QSizePolicy, QFrame, QLineEdit, QTreeWidgetItem
 from PyQt5.QtCore import Qt
 
 
@@ -56,7 +56,6 @@ class SheetDockWidget(QDockWidget):
 
         # - Create frame for button and entry
         self.newSheetWidget = QWidget(self.mainWidget)
-        #self.newConnWidget.setFrameStyle(QFrame.Panel | QFrame.Raised)
         self.newSheetWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         self.newSheetWidgetLayout = QFormLayout(self.newSheetWidget)
         self.newSheetWidgetLayout.setContentsMargins(0, 0, 0, 0)
@@ -75,11 +74,11 @@ class SheetDockWidget(QDockWidget):
         self.mainWidgetLayout.addWidget(self.newSheetWidget, 0, 0, 1, 1)
 
         # - Add worker treeview to content
-        self.workerTree = QTreeWidget(self.mainWidget)
-        self.workerTree.setColumnCount(1)
+        self.sheetTree = QTreeWidget(self.mainWidget)
+        self.sheetTree.setColumnCount(1)
 
-        self.workerTree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.mainWidgetLayout.addWidget(self.workerTree, 1, 0, 1, 1)
+        self.sheetTree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.mainWidgetLayout.addWidget(self.sheetTree, 1, 0, 1, 1)
 
         # Set dockwidget content to main widget
         self.setWidget(self.mainWidget)

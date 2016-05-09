@@ -157,12 +157,12 @@ class Worker:
                 monitorTreeitem.setText(0, monitor)
                 self.workerTreeItem.addChild(monitorTreeitem)
                 self.monitorState[monitor] = {"state": "new", "treeitem": monitorTreeitem}     # TODO: create new treeitem for monitor
-
-
+                self.parent.sheethandler.newMonitorSheet(str(self.connection.ip) + ":" + str(self.connection.port) + " - " + monitor, monitorTreeitem)
 
 class WorkerHandler():
-    def __init__(self, workerDockWidget):
+    def __init__(self, workerDockWidget, sheethandler):
         self.workerDockWidget = workerDockWidget
+        self.sheethandler = sheethandler
 
         self.connections = {}
         #self.workers = {}

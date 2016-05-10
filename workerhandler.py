@@ -6,6 +6,7 @@ import uuid
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QTreeWidgetItem
+from PyQt5.QtGui import QFont
 
 
 
@@ -46,11 +47,21 @@ class Connection():
 
 
 class Worker:
+    """ Manages remote workers and informs the user about the status of remote workers """
+
+    okFont = QFont()
+
+    staleFont = QFont()
+    staleFont.setItalic(True)   # TODO: Make yellow
+
+    errorFont = QFont()
+    errorFont.setBold(True)     # TODO: Make red
+
     def __init__(self, parent):
         self.parent = parent
 
         self.workerAccepted = False     # Whether or not the worker accepted the controller
-        self.workerTreeItem = None
+        self.workerTreeItem = QTreeWidgetItem()
 
         self.monitorState = {}
 
@@ -70,7 +81,6 @@ class Worker:
         self.parseInbuf()
 
     def createTreeitem(self):
-        self.workerTreeItem = QTreeWidgetItem()
         self.workerTreeItem.setText(0, str(self.connection.ip) + ":" + str(self.connection.port))
         self.parent.workerDockWidget.workerTree.addTopLevelItem(self.workerTreeItem)
 
@@ -127,6 +137,8 @@ class Worker:
                 print("Received")
             elif message["status"][1] == 1:
                 self.workerAccepted = False
+                self.createTreeitem()
+                self.connectionLost()
                 print("Rejected by worker")
 
         # Parse reply messages
@@ -144,20 +156,33 @@ class Worker:
                     return
 
     def requestMonitors(self):
-        request = {"msgid": uuid.uuid4().hex, "status":["command", 0], "command":{"datarequest":"monitors"}}
-        self.requestJar[request["msgid"]] = request["command"]
+        if self.workerAccepted:
+            request = {"msgid": uuid.uuid4().hex, "status":["command", 0], "command":{"datarequest":"monitors"}}
+            self.requestJar[request["msgid"]] = request["command"]
 
-        self.connection.outbuf += json.dumps(request) + "\n"
+            self.connection.outbuf += json.dumps(request) + "\n"
 
     def handleMonitors(self):
-        # TODO: Actually implement this correctly (add new monitors, mark stale monitors)
         for monitor in self.monitors:
             if monitor not in self.monitorState:
                 monitorTreeitem = QTreeWidgetItem()
                 monitorTreeitem.setText(0, monitor)
                 self.workerTreeItem.addChild(monitorTreeitem)
-                self.monitorState[monitor] = {"state": "new", "treeitem": monitorTreeitem}     # TODO: create new treeitem for monitor
-                self.parent.sheethandler.newMonitorSheet(str(self.connection.ip) + ":" + str(self.connection.port) + " - " + monitor, monitorTreeitem)
+                self.monitorState[monitor] = {"state": "new", "treeitem": monitorTreeitem, "sheet": None}
+                self.monitorState[monitor]["sheet"] = self.parent.sheethandler.newMonitorSheet(str(self.connection.ip) + ":" + str(self.connection.port) + " - " + monitor, monitorTreeitem)
+
+        for key in self.monitorState:
+            if key in self.monitors:
+                self.monitorState[key]["state"] = "ok"
+            else:
+                self.monitorState[key]["state"] = "stale"
+                self.monitorState[key]["treeitem"].setFont(0, Worker.staleFont)
+
+    def connectionLost(self):
+        self.workerTreeItem.setFont(0, Worker.errorFont)
+
+        self.monitors = []
+        self.handleMonitors()
 
 class WorkerHandler():
     def __init__(self, workerDockWidget, sheethandler):
@@ -202,13 +227,12 @@ class WorkerHandler():
         # Kill dead connections
         for key in dict(self.connections):
             if not self.connections[key][0].valid:
-                self.connections[key][0].callback = None    # Remove references to clear worker and connection object for deletion
-                self.connections[key][1].connection = None
-                del self.connections[key]
+                self.connections[key][1].workerAccepted = False
+                self.connections[key][1].connectionLost()
                 continue
 
         # Get all sockets to read from
-        rlist = [x[0].socket for x in list(self.connections.values())]
+        rlist = [x[0].socket for x in list(self.connections.values()) if x[0].valid]
         # Get all sockets with non-empty write buffer
         wlist = [x[0].socket for x in list(self.connections.values()) if x[0].outbuf]
 
@@ -224,3 +248,40 @@ class WorkerHandler():
         if elist:
             print("Sockethandler elist is not empty: " + str(elist))
 
+    def saveWorkers(self):
+        saveData = []
+        for key in self.connections:
+            workerData = [self.connections[key][0].ip, self.connections[key][0].port]
+
+            monitorStateData = []
+            for stateKey in self.connections[key][1].monitorState:
+                state = self.connections[key][1].monitorState[stateKey]
+                monitorStateData.append([stateKey, state["state"], state["sheet"].relations])
+
+            workerData.append(monitorStateData)
+            saveData.append(workerData)
+
+        return saveData
+
+    def loadWorkers(self, loadData):
+        for workerData in loadData:
+            newWorker = Worker(self)
+            newconn = Connection(workerData[0], workerData[1], newWorker.messagecallback)
+            newWorker.connection = newconn
+            if not newconn.valid:
+                newWorker.createTreeitem()
+                newWorker.connectionLost()
+
+            self.connections[newconn.socket] = (newconn, newWorker)
+
+            for state in workerData[2]:
+                newWorker.monitorState[state[0]] = {}
+                newWorker.monitorState[state[0]]["state"] = state[1]
+
+                monitorTreeitem = QTreeWidgetItem()
+                monitorTreeitem.setText(0, state[0])
+                newWorker.workerTreeItem.addChild(monitorTreeitem)
+                newWorker.monitorState[state[0]]["treeitem"] = monitorTreeitem
+
+                newWorker.monitorState[state[0]]["sheet"] = newWorker.parent.sheethandler.newMonitorSheet(str(newWorker.connection.ip) + ":" + str(newWorker.connection.port) + " - " + state[0], monitorTreeitem)
+                newWorker.monitorState[state[0]]["sheet"].relations = state[2]

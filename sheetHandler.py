@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QTreeWidgetItem
 
-class sheet():
+class Sheet():
     """Little data container class"""
     def __init__(self, name, treeitem, monitorSheet=False):
         self.name = name
@@ -27,7 +27,9 @@ class SheetHandler:
         self.mainWindow = mainWindow
 
     def newMonitorSheet(self, name, treeitem):
-        self.sheets.append(sheet(name, treeitem, monitorSheet=True))
+        newSheet = Sheet(name, treeitem, monitorSheet=True)
+        self.sheets.append(newSheet)
+        return newSheet
 
     def newOtherSheet(self):
         newName = self.sheetWidget.newSheetLineedit.text()
@@ -36,7 +38,7 @@ class SheetHandler:
             newTreeitem.setText(0, newName)
             self.sheetWidget.sheetTree.addTopLevelItem(newTreeitem)
 
-            self.sheets.append(sheet(newName, newTreeitem))
+            self.sheets.append(Sheet(newName, newTreeitem))
             self.itemClickedOther(newTreeitem, -1) # Make new sheet current
             self.sheetWidget.sheetTree.setCurrentItem(newTreeitem)
 
@@ -55,7 +57,6 @@ class SheetHandler:
 
         for sheet in self.sheets:
             if treeItem == sheet.treeitem:
-                print(sheet)
                 self.currentSheet = sheet
                 self.mainWindow.setSheetName(sheet.name)
                 if self.currentSheet.relations is not None:
@@ -65,6 +66,8 @@ class SheetHandler:
                     self.currentSheet.relations = self.sheetView.createRelationship()
 
     def saveSheets(self):
+        if self.currentSheet is not None:   # Save currently opened sheet
+            self.currentSheet.relations = self.sheetView.createRelationship()
         sheetData = []
         for sheet in self.sheets:
             if not sheet.monitorSheet:
@@ -78,7 +81,7 @@ class SheetHandler:
             newTreeitem.setText(0, sheet[0])
             self.sheetWidget.sheetTree.addTopLevelItem(newTreeitem)
 
-            newSheet = sheet(newName, newTreeitem)
+            newSheet = Sheet(sheet[0], newTreeitem)
             newSheet.relations = sheet[1]
             newSheet.monitorSheet = sheet[2]
             self.sheets.append(newSheet)

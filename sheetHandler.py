@@ -2,11 +2,11 @@ from PyQt5.QtWidgets import QTreeWidgetItem
 
 class sheet():
     """Little data container class"""
-    def __init__(self, name, treeitem):
+    def __init__(self, name, treeitem, monitorSheet=False):
         self.name = name
         self.treeitem = treeitem
         self.relations = None
-        self.monitorSheet = False
+        self.monitorSheet = monitorSheet
 
 
 class SheetHandler:
@@ -27,7 +27,7 @@ class SheetHandler:
         self.mainWindow = mainWindow
 
     def newMonitorSheet(self, name, treeitem):
-        self.sheets.append(sheet(name, treeitem))
+        self.sheets.append(sheet(name, treeitem, monitorSheet=True))
 
     def newOtherSheet(self):
         newName = self.sheetWidget.newSheetLineedit.text()
@@ -63,3 +63,25 @@ class SheetHandler:
                 else:
                     self.sheetView.newSheet()
                     self.currentSheet.relations = self.sheetView.createRelationship()
+
+    def saveSheets(self):
+        sheetData = []
+        for sheet in self.sheets:
+            if not sheet.monitorSheet:
+                sheetData.append([sheet.name, sheet.relations, sheet.monitorSheet])
+
+        return sheetData
+
+    def loadSheets(self, sheetData):
+        for sheet in sheetData:
+            newTreeitem = QTreeWidgetItem()
+            newTreeitem.setText(0, sheet[0])
+            self.sheetWidget.sheetTree.addTopLevelItem(newTreeitem)
+
+            newSheet = sheet(newName, newTreeitem)
+            newSheet.relations = sheet[1]
+            newSheet.monitorSheet = sheet[2]
+            self.sheets.append(newSheet)
+            self.itemClickedOther(newTreeitem, -1)  # Make new sheet current
+            self.sheetWidget.sheetTree.setCurrentItem(newTreeitem)
+

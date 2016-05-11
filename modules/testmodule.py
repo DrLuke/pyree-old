@@ -9,6 +9,7 @@ class TestNode(BaseNode):
     nodeName = "drluke.testmodule.TestNode"
     name = "Testnode"
     desc = "This is a node for testing porpoises."
+    category = "Test"
     placable = True
 
     def init(self):

@@ -6,7 +6,8 @@ class Loop(BaseNode):
     nodeName = "drluke.builtin.Loop"
     name = "Loop"
     desc = "Beginning of loop"
-    placable = False
+    category = "Builtin"
+    placable = True
 
     def init(self):
         pass
@@ -30,6 +31,8 @@ class Init(Loop):
     nodeName = "drluke.builtin.Init"
     name = "Init"
     desc = "Beginning of init"
+    category = "Builtin"
+    placable = True
 
     def init(self):
         print("Init created")
@@ -41,7 +44,8 @@ class SheetInput(BaseNode):
     nodeName = "drluke.builtin.SheetInput"
     name = "Sheet Input"
     desc = "Input for the sheet. Will be read out once every loop."
-    placable = False
+    category = "Builtin"
+    placable = True
 
     def getInput(self):
         pass

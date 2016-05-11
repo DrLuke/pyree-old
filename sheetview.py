@@ -29,12 +29,14 @@ class NodeSelector(QDialog):
         self.gridLayout.addWidget(self.lineEdit, 0, 0, 1, 1)
 
         self.treeWidget = QTreeWidget()
+        self.treeWidget.itemActivated.connect(self.itemActivated)
         self.gridLayout.addWidget(self.treeWidget, 1, 0, 1, 1)
+
+        self.data = {"node": None, "pin": None}
 
         self.rebuildTree()
 
-        self.data = "test"
-        self.done(0)
+
 
     def rebuildTree(self):
         # Fill Tree with items
@@ -56,11 +58,13 @@ class NodeSelector(QDialog):
 
         self.moduleDict = {}
         for key in self.modMan.availableNodes:
-            if self.modMan.availableNodes[key].placable and self.filterModule(self.modMan.availableNodes[key]):
+            if self.modMan.availableNodes[key].placable and self.filterModule(self.modMan.availableNodes[key]): # Todo: Could reuse previous results if performance becomes critical
                 newTreeitem = QTreeWidgetItem()
                 newTreeitem.setText(0, self.modMan.availableNodes[key].name)
                 newTreeitem.setToolTip(0, self.modMan.availableNodes[key].desc)
                 self.categoryTreeitems[self.modMan.availableNodes[key].category].addChild(newTreeitem)
+
+                self.moduleDict[key] = newTreeitem
 
         for key in self.categoryTreeitems:
             self.categoryTreeitems[key].setExpanded(True)
@@ -72,10 +76,7 @@ class NodeSelector(QDialog):
         if "type" in self.modfilter:
             if self.modfilter["type"]["dir"] == "input":
                 for input in module.inputDefs:
-                    print(input.pintype)
-                    print(self.modfilter["type"]["type"])
                     if input.pintype == self.modfilter["type"]["type"]:
-                        print(" BEEEP")
                         compatibleType = True
                         break
             elif self.modfilter["type"]["dir"] == "output":
@@ -95,7 +96,7 @@ class NodeSelector(QDialog):
             ratio = fuzz.ratio(self.modfilter["text"], module.name)
             ratio = max(ratio, fuzz.partial_ratio(self.modfilter["text"], module.desc))
         else:
-            return True     # Don't filter by text
+            return True     # Don't filter by text? Return all remaining
 
         if ratio > 40:
             return True
@@ -105,6 +106,25 @@ class NodeSelector(QDialog):
     def textChanged(self, newText):
         self.modfilter["text"] = newText
         self.rebuildTree()
+
+    def itemActivated(self, item, column):
+        for key in self.moduleDict:
+            if self.moduleDict[key] == item:
+
+                if "type" in self.modfilter:
+                    if self.modfilter["type"]["dir"] == "input":
+                        for input in self.modMan.availableNodes[key].inputDefs:
+                            if input.pintype == self.modfilter["type"]["type"]:
+                                self.data["pin"] = self.modMan.availableNodes[key].inputDefs.index(input)
+                                break
+                    elif self.modfilter["type"]["dir"] == "output":
+                        for output in self.modMan.availableNodes[key].outputDefs:
+                            if output.pintype == self.modfilter["type"]["type"]:
+                                self.data["pin"] = self.modMan.availableNodes[key].outputDefs.index(output)
+                                break
+
+                self.data["node"] = self.modMan.availableNodes[key]
+                self.done(1)
 
 
 class Node(QGraphicsRectItem):
@@ -158,6 +178,7 @@ class Node(QGraphicsRectItem):
             self.bezier = []
 
         def mousePressEvent(self, event):
+            print(self.iotype)
             if event.button() == Qt.LeftButton:
                 if self.iodir == "output":
                     self.newbezier = Node.io.BezierCurve(self, None)
@@ -186,6 +207,24 @@ class Node(QGraphicsRectItem):
             target = self.parent.parent.itemAt(pos.x(), pos.y())
 
             # If io box is found, spawn a bezier curve
+            if target is None:
+                if self.iodir == "output":
+                    print(self.iotype)
+                    ns = NodeSelector(self.parent.parent.modman, modfilter={"type": {"type": self.iotype, "dir": "input"}})
+                elif self.iodir == "input":
+                    print(self.iotype)
+                    ns = NodeSelector(self.parent.parent.modman, modfilter={"type": {"type": self.iotype, "dir": "output"}})
+                if ns.exec():
+                    print(ns.data)
+                    if issubclass(ns.data["node"], baseModule.BaseNode):
+                        newNode = Node(self.parent.parent, ns.data["node"])
+                        newNode.setPos(event.pos() + self.pos() + self.parent.pos())
+                        self.parent.parent.scene.addItem(newNode)
+                        if self.iodir == "output":
+                            target = newNode.inputIO[ns.data["pin"]]
+                        elif self.iodir == "input":
+                            target = newNode.outputIO[ns.data["pin"]]
+
             if target is not None and isinstance(target, Node.io):
                 bezier = None
                 if self.iodir == "output" and target.iodir == "input" and self.iotype == target.iotype:
@@ -208,9 +247,6 @@ class Node(QGraphicsRectItem):
                     target.bezier.append(bezier)
 
                     self.parent.parent.scene.addItem(bezier)
-            else:
-                pass
-                # TODO: Show selection window to spawn new appropriate node
 
         def updateBezier(self):
             for bezier in self.bezier:
@@ -283,7 +319,7 @@ class Node(QGraphicsRectItem):
                                               -self.height / 2 + self.nodetitleTextItem.boundingRect().height() + heightPointer)
                 heightPointer += self.inputTextItems[i].boundingRect().height()
 
-                newinput = Node.io(self, i, self.nodedata.outputDefs[i][1], "input")
+                newinput = Node.io(self, i, self.nodedata.inputDefs[i][1], "input")
                 self.inputIO.append(newinput)
                 newinput.setPos(-self.width / 2 - newinput.rect().width() / 2,
                                 -self.height / 2 + heightPointer + self.inputTextItems[i].boundingRect().height() / 2)
@@ -362,6 +398,7 @@ class SheetView(QGraphicsView):
         return relationship
 
     def newSheet(self):
+        self.emptySheet = False
         nodes = [x for x in self.scene.items() if isinstance(x, Node)]
         for node in nodes:
             node.delete()
@@ -376,10 +413,8 @@ class SheetView(QGraphicsView):
         self.scene.addItem(self.initnode)
         self.scene.addItem(self.loopnode)
 
-        self.scene.addItem( Node(self, self.modman.availableNodes["drluke.testmodule.TestNode"]))
-        self.scene.addItem(Node(self, self.modman.availableNodes["drluke.testmodule.TestNode"]))
-
     def loadRelationship(self, sheet):
+        self.emptySheet = False
         nodes = [x for x in self.scene.items() if isinstance(x, Node)]
         for node in nodes:
             node.delete()
@@ -427,6 +462,8 @@ class SheetView(QGraphicsView):
         self.scene = QGraphicsScene()
         super().__init__(self.scene)
 
+        self.emptySheet = True  # Don't allow any modifications until a new sheet is created or loaded
+
         self.backgroundPixmap = QPixmap("resources/grid.jpg")
         self.bgBrush = QBrush(self.backgroundPixmap)
         self.scene.setBackgroundBrush(self.bgBrush)
@@ -440,3 +477,15 @@ class SheetView(QGraphicsView):
         #self.loadSheet(json.loads("""{"loopnode":"85a1abbd6d86462bbdad9639086b503e","85a1abbd6d86462bbdad9639086b503e":{"inputs":[],"nodename":"drluke.builtin.Loop","pos":[0,144],"outputs":[[]]},"52667c109d734f8883c74cf1a659b675":{"inputs":[],"nodename":"drluke.builtin.Init","pos":[0,0],"outputs":[[]]},"initnode":"52667c109d734f8883c74cf1a659b675"}"""))
         #self.loadRelationship(json.loads("""{"loopnode":"4e742e8ccb554213a9efe10431400637","c1e809fe45f340bfa1e68ed0a5429fb0":{"outputs":[[],[]],"pos":[431,108],"inputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]],[]],"nodename":"drluke.testmodule.TestNode"},"dbb2a2812a4d42209e6b7aa635fca477":{"outputs":[[["c1e809fe45f340bfa1e68ed0a5429fb0",0]],[]],"pos":[187,85],"inputs":[[["d7e6f0fe49fd4c598fdd4503bcffbd9c",0],["4e742e8ccb554213a9efe10431400637",0]],[]],"nodename":"drluke.testmodule.TestNode"},"d7e6f0fe49fd4c598fdd4503bcffbd9c":{"outputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]]],"pos":[0,0],"inputs":[],"nodename":"drluke.builtin.Init"},"4e742e8ccb554213a9efe10431400637":{"outputs":[[["dbb2a2812a4d42209e6b7aa635fca477",0]]],"pos":[0,200],"inputs":[],"nodename":"drluke.builtin.Loop"},"initnode":"d7e6f0fe49fd4c598fdd4503bcffbd9c"}"""))
 
+
+    def mousePressEvent(self, event):
+        if not self.emptySheet:
+            super().mousePressEvent(event)
+            if not event.isAccepted():
+                if event.button() == Qt.RightButton:
+                    ns = NodeSelector(self.modman)
+                    if ns.exec():
+                        if issubclass(ns.data["node"], baseModule.BaseNode):
+                            newNode = Node(self, ns.data["node"])
+                            newNode.setPos(self.mapToScene(event.pos()))
+                            self.scene.addItem(newNode)

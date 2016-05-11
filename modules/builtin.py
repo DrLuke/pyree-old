@@ -7,7 +7,7 @@ class Loop(BaseNode):
     name = "Loop"
     desc = "Beginning of loop"
     category = "Builtin"
-    placable = True
+    placable = False
 
     def init(self):
         pass
@@ -32,7 +32,7 @@ class Init(Loop):
     name = "Init"
     desc = "Beginning of init"
     category = "Builtin"
-    placable = True
+    placable = False
 
     def init(self):
         print("Init created")

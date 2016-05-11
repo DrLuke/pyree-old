@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem,\
-    QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem
+    QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem, QDialog, QGridLayout, QLineEdit, QTreeWidget, QTreeWidgetItem
 
 from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath
 from PyQt5.QtCore import QPointF, Qt
@@ -10,6 +10,102 @@ import uuid
 import baseModule
 from modules import testmodule
 from moduleManager import ModuleManager
+
+from fuzzywuzzy import fuzz
+
+
+class NodeSelector(QDialog):
+    """ Popup window for creating new nodes """
+    def __init__(self, moduleManager, modfilter={}):
+        super().__init__()
+
+        self.modMan = moduleManager
+        self.modfilter = modfilter
+
+        self.gridLayout = QGridLayout(self)
+
+        self.lineEdit = QLineEdit()
+        self.lineEdit.textChanged.connect(self.textChanged)
+        self.gridLayout.addWidget(self.lineEdit, 0, 0, 1, 1)
+
+        self.treeWidget = QTreeWidget()
+        self.gridLayout.addWidget(self.treeWidget, 1, 0, 1, 1)
+
+        self.rebuildTree()
+
+        self.data = "test"
+        self.done(0)
+
+    def rebuildTree(self):
+        # Fill Tree with items
+        ## Find all available Categories
+        self.treeWidget.clear()
+        self.categories = []
+        for key in self.modMan.availableNodes:
+            if self.modMan.availableNodes[key].placable and self.filterModule(self.modMan.availableNodes[key]):
+                self.categories.append(self.modMan.availableNodes[key].category)
+        self.categories = list(set(self.categories))  # Make list unique
+
+        self.categoryTreeitems = {}
+        for category in self.categories:
+            newTreeitem = QTreeWidgetItem()
+            newTreeitem.setText(0, category)
+            self.treeWidget.addTopLevelItem(newTreeitem)
+
+            self.categoryTreeitems[category] = newTreeitem
+
+        self.moduleDict = {}
+        for key in self.modMan.availableNodes:
+            if self.modMan.availableNodes[key].placable and self.filterModule(self.modMan.availableNodes[key]):
+                newTreeitem = QTreeWidgetItem()
+                newTreeitem.setText(0, self.modMan.availableNodes[key].name)
+                newTreeitem.setToolTip(0, self.modMan.availableNodes[key].desc)
+                self.categoryTreeitems[self.modMan.availableNodes[key].category].addChild(newTreeitem)
+
+        for key in self.categoryTreeitems:
+            self.categoryTreeitems[key].setExpanded(True)
+
+
+    def filterModule(self, module):
+        ratio = 0
+        compatibleType = False
+        if "type" in self.modfilter:
+            if self.modfilter["type"]["dir"] == "input":
+                for input in module.inputDefs:
+                    print(input.pintype)
+                    print(self.modfilter["type"]["type"])
+                    if input.pintype == self.modfilter["type"]["type"]:
+                        print(" BEEEP")
+                        compatibleType = True
+                        break
+            elif self.modfilter["type"]["dir"] == "output":
+                for output in module.outputDefs:
+                    if output.pintype == self.modfilter["type"]["type"]:
+                        compatibleType = True
+                        break
+
+            if not compatibleType:
+                return False
+
+        if "text" in self.modfilter:    # Filter by text input
+            if self.modfilter["text"] in module.name:
+                return True
+            if not self.modfilter["text"]:  # Text entry is empty
+                return True
+            ratio = fuzz.ratio(self.modfilter["text"], module.name)
+            ratio = max(ratio, fuzz.partial_ratio(self.modfilter["text"], module.desc))
+        else:
+            return True     # Don't filter by text
+
+        if ratio > 40:
+            return True
+        else:
+            return False
+
+    def textChanged(self, newText):
+        self.modfilter["text"] = newText
+        self.rebuildTree()
+
 
 class Node(QGraphicsRectItem):
     class io(QGraphicsRectItem):
@@ -225,9 +321,6 @@ class Node(QGraphicsRectItem):
 
         del self.inputIO
         del self.outputIO
-
-    def __del__(self):
-        print("del: " + str(self))
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)

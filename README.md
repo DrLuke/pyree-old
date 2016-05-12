@@ -3,8 +3,8 @@ This is a live VJ-tool written for the Lounge of [Gulaschprogrammiernacht](https
 It relied on an openGL-like workflow and indeed is nothing more than a visual openGL wrapper. You're not limited to just shaders
 
 ## Depencencies:
-PyQT5
-[pyGLFW](https://github.com/FlorianRhiem/pyGLFW)
+PyQT5  
+[pyGLFW](https://github.com/FlorianRhiem/pyGLFW)  
 [fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy)
 
 ## License

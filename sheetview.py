@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem,\
     QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem, QDialog, QGridLayout, QLineEdit, QTreeWidget, QTreeWidgetItem
 
-from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath
+from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath, QPen
 from PyQt5.QtCore import QPointF, Qt
 import PyQt5
 
@@ -133,6 +133,8 @@ class Node(QGraphicsRectItem):
             def __init__(self, iostart=None, ioend=None):
                 super().__init__()
 
+                self.setEnabled(False)  # Make it ignore events. Links can't be interacted with.
+
                 self.iostart = iostart
                 self.ioend = ioend
 
@@ -170,6 +172,8 @@ class Node(QGraphicsRectItem):
             self.iotype = iotype
             self.iodir = iodir
             super().__init__(-8, -8, 16, 16, self.parent)  # Size of io-boxes is 16x16
+
+            self.setAcceptHoverEvents(True)
 
             self.iobrush = QBrush(QColor(70, 70, 70, 255))
             self.setBrush(self.iobrush)
@@ -248,6 +252,14 @@ class Node(QGraphicsRectItem):
 
                     self.parent.parent.scene.addItem(bezier)
 
+        def hoverEnterEvent(self, event):
+            self.parent.setPen(QPen(QColor("black")))   # For some fucking reason QGraphicsSceneHoverEvents can't be accepted, so this dirty workaround has to be used...
+            self.setPen(QPen(QColor("yellow")))
+
+        def hoverLeaveEvent(self, event):
+            self.parent.setPen(QPen(QColor("yellow")))  # See above
+            self.setPen(QPen(QColor("black")))
+
         def updateBezier(self):
             for bezier in self.bezier:
                 bezier.update()
@@ -269,6 +281,9 @@ class Node(QGraphicsRectItem):
         self.width = 32
         self.height = 0
         super().__init__(-self.width / 2, -self.height / 2, self.width, self.height)
+
+        self.setAcceptHoverEvents(True)
+        self.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
         if id is not None:
             self.id = id
@@ -363,6 +378,12 @@ class Node(QGraphicsRectItem):
 
         for io in self.inputIO + self.outputIO:
             io.updateBezier()
+
+    def hoverEnterEvent(self, event):
+        self.setPen(QPen(QColor("yellow")))
+
+    def hoverLeaveEvent(self, event):
+        self.setPen(QPen(QColor("black")))
 
 
 class SheetView(QGraphicsView):
@@ -461,6 +482,8 @@ class SheetView(QGraphicsView):
     def __init__(self):
         self.scene = QGraphicsScene()
         super().__init__(self.scene)
+
+        self.setDragMode(QGraphicsView.RubberBandDrag)
 
         self.emptySheet = True  # Don't allow any modifications until a new sheet is created or loaded
 

@@ -182,7 +182,6 @@ class Node(QGraphicsRectItem):
             self.bezier = []
 
         def mousePressEvent(self, event):
-            print(self.iotype)
             if event.button() == Qt.LeftButton:
                 if self.iodir == "output":
                     self.newbezier = Node.io.BezierCurve(self, None)
@@ -213,13 +212,10 @@ class Node(QGraphicsRectItem):
             # If io box is found, spawn a bezier curve
             if target is None:
                 if self.iodir == "output":
-                    print(self.iotype)
                     ns = NodeSelector(self.parent.parent.modman, modfilter={"type": {"type": self.iotype, "dir": "input"}})
                 elif self.iodir == "input":
-                    print(self.iotype)
                     ns = NodeSelector(self.parent.parent.modman, modfilter={"type": {"type": self.iotype, "dir": "output"}})
                 if ns.exec():
-                    print(ns.data)
                     if issubclass(ns.data["node"], baseModule.BaseNode):
                         newNode = Node(self.parent.parent, ns.data["node"])
                         newNode.setPos(event.pos() + self.pos() + self.parent.pos())
@@ -512,3 +508,12 @@ class SheetView(QGraphicsView):
                             newNode = Node(self, ns.data["node"])
                             newNode.setPos(self.mapToScene(event.pos()))
                             self.scene.addItem(newNode)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            # Delete selection except for init and loop
+            nodes = [x for x in self.scene.items() if isinstance(x, Node)]
+            for node in nodes:
+                if node.isSelected() and not node == self.initnode and not node == self.loopnode:
+                    node.delete()
+                    self.scene.removeItem(node)

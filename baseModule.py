@@ -3,13 +3,15 @@ import types, uuid
 __nodes__ = ["BaseNode"]
 
 class Pin:
-    def __init__(self, name, pintype, function):
+    def __init__(self, name, pintype, function, tooltip=""):
         self.name = name
         self.pintype = pintype
 
         if isinstance(type(function), types.FunctionType):
             raise ValueError("'function' argument must be of function type (Is '" + str(type(function)) + "')")
         self.function = function
+
+        self.tooltip = tooltip
 
     def __getitem__(self, index):
         if index == 0:
@@ -18,6 +20,8 @@ class Pin:
             return self.pintype
         elif index == 2:
             return self.function
+        elif index == 3:
+            return self.tooltip
         else:
             raise IndexError("Illegal index: " + str(index) + " (Only allowed inidices are 0 to 2)")
 
@@ -32,6 +36,8 @@ class BaseNode:
     placable = False  # Node prototypes like the baseNode do not necessarily have to be placable, as they might just
     # serve as a prototype to inherit from.
     tags = ["basenode"]
+
+    settingsDialog = None
 
     def __init__(self, runtime, relations, objid):
         self.runtime = runtime

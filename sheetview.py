@@ -281,6 +281,8 @@ class Node(QGraphicsRectItem):
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
+        self.extraNodeData = {}
+
         if id is not None:
             self.id = id
         else:
@@ -410,6 +412,8 @@ class SheetView(QGraphicsView):
                     ids.append([link.ioend.parent.id, link.iostart.index])
                 nodeRelations["outputs"].append(ids)
 
+            nodeRelations["extraData"] = node.extraNodeData
+
             relationship[node.id] = nodeRelations
 
         return relationship
@@ -461,6 +465,8 @@ class SheetView(QGraphicsView):
             if not (id == "initnode" or id == "loopnode"):
                 node = nodedict[id]
 
+                node.extraNodeData = nodeRelations["extraData"]
+
                 for io in sheet[id]["outputs"]:
                     ioindx = sheet[id]["outputs"].index(io)
                     for link in sheet[id]["outputs"][ioindx]:
@@ -508,6 +514,17 @@ class SheetView(QGraphicsView):
                             newNode = Node(self, ns.data["node"])
                             newNode.setPos(self.mapToScene(event.pos()))
                             self.scene.addItem(newNode)
+
+    def mouseDoubleClickEvent(self, event):
+        if not self.emptySheet:
+            if event.button() == Qt.LeftButton:
+                item = self.scene.selectedItems()[0]
+                if isinstance(item, Node):
+                    if item.nodedata.settingsDialog is not None:
+                        dialog = item.nodedata.settingsDialog(item.extraNodeData)
+                        if dialog.exec():
+                            item.extraNodeData = dialog.data
+
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:

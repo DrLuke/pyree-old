@@ -39,10 +39,11 @@ class BaseNode:
 
     settingsDialog = None
 
-    def __init__(self, runtime, relations, objid):
+    def __init__(self, runtime, relations, objid, extraNodeData={}):
         self.runtime = runtime
         self.relations = relations
         self.id = objid
+        self.extraNodeData = extraNodeData
 
         self.init()
 

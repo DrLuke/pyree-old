@@ -219,6 +219,8 @@ class glfwWorker():
             return 0
 
     def receiveCommand(self, message):
+        print("Received command:" + str(message))  # TODO: Check command validity, process command further
+
         sheetCommand = False
         try:
             message["command"]["sheet"]
@@ -231,7 +233,7 @@ class glfwWorker():
             except:
                 pass    # TODO: print exception to controller (traceback.print_exc())
 
-        print("Received command:" + str(message))    # TODO: Check command validity, process command further
+
 
     def updateSheet(self, sheet):
         print("Updating Sheet")
@@ -243,7 +245,7 @@ class glfwWorker():
                 print(sheet[id])
                 if(id == "initnode" or id == "loopnode"):
                     continue
-                idExists = False
+                idExists = id in self.sheetObjects
                 try:
                     self.sheetObjects[id]
                     idExists = True

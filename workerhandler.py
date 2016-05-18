@@ -231,10 +231,22 @@ class WorkerHandler():
                 self.connections[key][1].connectionLost()
                 continue
 
+        # Check if sheets changed, and transmit them if they did change
+        for key in dict(self.connections):
+            for monitorKey in self.connections[key][1].monitorState:
+                if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None:
+                    curRel = self.sheethandler.sheetView.createRelationship()
+                    if not self.connections[key][1].monitorState[monitorKey]["sheet"].relations == curRel:
+
+                        self.connections[key][1].monitorState[monitorKey]["sheet"].relations = curRel
+
+                        command = {"msgid": uuid.uuid4().hex, "status": ["command", 0], "command": {"monitor": monitorKey, "sheet": curRel}}
+                        self.connections[key][1].connection.outbuf += json.dumps(command) + "\n"
+
         # Get all sockets to read from
         rlist = [x[0].socket for x in list(self.connections.values()) if x[0].valid]
         # Get all sockets with non-empty write buffer
-        wlist = [x[0].socket for x in list(self.connections.values()) if x[0].outbuf]
+        wlist = [x[0].socket for x in list(self.connections.values()) if x[0].outbuf and x[0].valid]
 
         # Run select to check if there's anything to read or if we can write
         rlist, wlist, elist = select(rlist, wlist, wlist, 0)

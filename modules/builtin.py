@@ -1,6 +1,6 @@
 from baseModule import BaseNode, Pin
 
-__nodes__ = ["Loop", "Init"]
+__nodes__ = ["Loop", "Init", "If"]
 
 class Loop(BaseNode):
     nodeName = "drluke.builtin.Loop"
@@ -13,8 +13,6 @@ class Loop(BaseNode):
         pass
 
     def run(self):
-        print(" --")
-        print("Loop starting!")
         self.fireExec(0)
 
     def getExecdata(self):
@@ -24,7 +22,7 @@ class Loop(BaseNode):
     ]
 
     outputDefs = [
-        Pin("exec", "exec", getExecdata),
+        Pin("exec", "exec", getExecdata)
     ]
 
 class Init(Loop):
@@ -35,10 +33,36 @@ class Init(Loop):
     placable = False
 
     def init(self):
-        print("Init created")
+        pass
 
     def run(self):
-        print("Init running")
+        self.fireExec(0)
+
+class If(BaseNode):
+    nodeName = "drluke.builtin.If"
+    name = "If"
+    desc = "Simple if-else-block"
+    category = "Builtin"
+    placable = True
+
+    def init(self):
+        pass
+
+    def run(self):
+        self.fireExec(0)
+
+    def getExecdata(self):
+        pass
+
+    inputDefs = [
+        Pin("exec", "exec", run),
+        Pin("bool", "", run)
+    ]
+
+    outputDefs = [
+        Pin("True", "exec", getExecdata),
+        Pin("False", "exec", getExecdata)
+    ]
 
 class SheetInput(BaseNode):
     nodeName = "drluke.builtin.SheetInput"

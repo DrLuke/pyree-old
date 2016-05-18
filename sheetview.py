@@ -465,7 +465,7 @@ class SheetView(QGraphicsView):
             if not (id == "initnode" or id == "loopnode"):
                 node = nodedict[id]
 
-                node.extraNodeData = nodeRelations["extraData"]
+                node.extraNodeData = sheet[id]["extraData"]
 
                 for io in sheet[id]["outputs"]:
                     ioindx = sheet[id]["outputs"].index(io)
@@ -506,24 +506,26 @@ class SheetView(QGraphicsView):
     def mousePressEvent(self, event):
         if not self.emptySheet:
             super().mousePressEvent(event)
-            if not event.isAccepted():
-                if event.button() == Qt.RightButton:
-                    ns = NodeSelector(self.modman)
-                    if ns.exec():
-                        if issubclass(ns.data["node"], baseModule.BaseNode):
-                            newNode = Node(self, ns.data["node"])
-                            newNode.setPos(self.mapToScene(event.pos()))
-                            self.scene.addItem(newNode)
+            #if not event.isAccepted():
+            if event.button() == Qt.RightButton:
+                ns = NodeSelector(self.modman)
+                if ns.exec():
+                    if issubclass(ns.data["node"], baseModule.BaseNode):
+                        newNode = Node(self, ns.data["node"])
+                        newNode.setPos(self.mapToScene(event.pos()))
+                        self.scene.addItem(newNode)
 
     def mouseDoubleClickEvent(self, event):
         if not self.emptySheet:
             if event.button() == Qt.LeftButton:
-                item = self.scene.selectedItems()[0]
-                if isinstance(item, Node):
-                    if item.nodedata.settingsDialog is not None:
-                        dialog = item.nodedata.settingsDialog(item.extraNodeData)
-                        if dialog.exec():
-                            item.extraNodeData = dialog.data
+                items = self.scene.selectedItems()
+                if len(items) == 1:
+                    item = items[0]
+                    if isinstance(item, Node):
+                        if item.nodedata.settingsDialog is not None:
+                            dialog = item.nodedata.settingsDialog(item.extraNodeData)
+                            if dialog.exec():
+                                item.extraNodeData = dialog.data
 
 
     def keyPressEvent(self, event):

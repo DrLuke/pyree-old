@@ -7,5 +7,8 @@ PyQT5
 [pyGLFW](https://github.com/FlorianRhiem/pyGLFW)  
 [fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy)
 
+## Attributions:
+[Silk Icons](http://www.famfamfam.com/lab/icons/silk/) by famfamfam
+
 ## License
 This project uses the MIT license.

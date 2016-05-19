@@ -6,7 +6,7 @@ import uuid
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QTreeWidgetItem
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 
 
 
@@ -45,6 +45,16 @@ class Connection():
     def __del__(self):
         self.socket.close()
 
+    def reconnect(self):
+        self.socket.close()
+        self.socket = self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        self.valid = True
+        try:
+            self.socket.connect((self.ip, self.port))
+        except ConnectionRefusedError:
+            self.valid = False
+
 
 class Worker:
     """ Manages remote workers and informs the user about the status of remote workers """
@@ -56,6 +66,7 @@ class Worker:
 
     errorFont = QFont()
     errorFont.setBold(True)     # TODO: Make red
+
 
     def __init__(self, parent):
         self.parent = parent
@@ -74,6 +85,9 @@ class Worker:
         self.monitorTimer = QTimer()
         self.monitorTimer.timeout.connect(self.requestMonitors)
         self.monitorTimer.start(5000)
+
+        #
+        self.errorIcon = QIcon("resources/icons/exclamation.png")
 
     def messagecallback(self, message):
         self.inbuf += message
@@ -130,6 +144,7 @@ class Worker:
                 self.createTreeitem()
                 self.requestMonitors()
                 self.workerTreeItem.setExpanded(True)   # Automatically expand it on creation
+                self.connected()
 
         # Parse error messages
         if message["status"][0] == "error":
@@ -156,6 +171,10 @@ class Worker:
                     return
 
     def requestMonitors(self):
+        if not self.connection.valid:
+            self.connection.reconnect()
+            if self.connection.valid:
+                self.connected()
         if self.workerAccepted:
             request = {"msgid": uuid.uuid4().hex, "status":["command", 0], "command":{"datarequest":"monitors"}}
             self.requestJar[request["msgid"]] = request["command"]
@@ -180,9 +199,17 @@ class Worker:
 
     def connectionLost(self):
         self.workerTreeItem.setFont(0, Worker.errorFont)
+        self.workerTreeItem.setIcon(0, self.errorIcon)
+        self.workerTreeItem.setToolTip(0, "Connection lost...")
 
         self.monitors = []
         self.handleMonitors()
+
+    def connected(self):
+        """ Called when connection is successfully established """
+        self.workerTreeItem.setFont(0, Worker.okFont)
+        self.workerTreeItem.setIcon(0, QIcon())
+        self.workerTreeItem.setToolTip(0, "Worker in good health")
 
 class WorkerHandler():
     def __init__(self, workerDockWidget, sheethandler):
@@ -227,6 +254,12 @@ class WorkerHandler():
             self.connections[newconn.socket] = (newconn, newWorker)
 
     def tick(self):
+        # Check if socks changed
+        for sock in self.connections:
+            if not self.connections[sock][0].socket == sock:
+                self.connections[self.connections[sock][0].socket] = self.connections[sock]
+                del self.connections[sock]
+
         # Kill dead connections
         for key in dict(self.connections):  # TODO: Why dict?
             if not self.connections[key][0].valid:

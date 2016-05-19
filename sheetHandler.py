@@ -43,11 +43,11 @@ class SheetHandler:
             self.sheetWidget.sheetTree.setCurrentItem(newTreeitem)
 
     def itemClickedOther(self, treeItem, columnIndex):
-        # TODO: Handle clicking on toplevel item instead of clicking on monitoritem?
         self.workerWidget.workerTree.setCurrentItem(None)
         self.itemClicked(treeItem, columnIndex)
 
     def itemClickedWorker(self, treeItem, columnIndex):
+        # TODO: Handle clicking on toplevel item instead of clicking on monitoritem?
         self.sheetWidget.sheetTree.setCurrentItem(None)
         self.itemClicked(treeItem, columnIndex)
 

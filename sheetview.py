@@ -409,7 +409,7 @@ class SheetView(QGraphicsView):
             for output in node.outputIO:
                 ids = []
                 for link in output.bezier:
-                    ids.append([link.ioend.parent.id, link.iostart.index])
+                    ids.append([link.ioend.parent.id, link.ioend.index])
                 nodeRelations["outputs"].append(ids)
 
             nodeRelations["extraData"] = node.extraNodeData

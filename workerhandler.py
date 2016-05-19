@@ -225,18 +225,19 @@ class WorkerHandler():
 
     def tick(self):
         # Kill dead connections
-        for key in dict(self.connections):
+        for key in dict(self.connections):  # TODO: Why dict?
             if not self.connections[key][0].valid:
                 self.connections[key][1].workerAccepted = False
                 self.connections[key][1].connectionLost()
                 continue
 
         # Check if sheets changed, and transmit them if they did change
+        # TODO: FIX THIS SHIT UP OMG THIS IS SO BAD AAAAAAHHHHHHH
         for key in dict(self.connections):
             for monitorKey in self.connections[key][1].monitorState:
                 if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None:
                     curRel = self.sheethandler.sheetView.createRelationship()
-                    if not self.connections[key][1].monitorState[monitorKey]["sheet"].relations == curRel:
+                    if self.connections[key][1].monitorState[monitorKey]["sheet"] == self.sheethandler.currentSheet and not self.connections[key][1].monitorState[monitorKey]["sheet"].relations == curRel:
 
                         self.connections[key][1].monitorState[monitorKey]["sheet"].relations = curRel
 

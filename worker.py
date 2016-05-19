@@ -236,13 +236,13 @@ class glfwWorker():
 
 
     def updateSheet(self, sheet):
-        print("Updating Sheet")
+        #print("Updating Sheet")
         newSheetObjects = {}
         try:
             for id in sheet:
-                print(" --")
-                print(id)
-                print(sheet[id])
+                #print(" --")
+                #print(id)
+                #print(sheet[id])
                 if(id == "initnode" or id == "loopnode"):
                     continue
                 idExists = id in self.sheetObjects
@@ -258,9 +258,14 @@ class glfwWorker():
                     newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)
 
             # No exceptions? replace old sheet by new sheet
-            print(newSheetObjects)
+            #print(newSheetObjects)
             self.sheetObjects = newSheetObjects
             self.currentSheet = sheet
+
+            # Call all init functions of nodes (again). This can't happen in __init__
+            # as some dependencies might not exist yet.
+            for node in self.sheetObjects.values():
+                node.init()
 
             # Trigger initnode
             self.sheetObjects[self.currentSheet["initnode"]].run()

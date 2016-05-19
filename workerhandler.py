@@ -298,6 +298,10 @@ class WorkerHandler():
                 pass
 
     def newWorker(self, ip, port):
+        for key in self.connections:
+            if self.connections[key][0].ip == ip and self.connections[key][0].port == port:
+                return
+
         newWorker = Worker(self)
         newconn = Connection(ip, port, newWorker.messagecallback)
         newWorker.connection = newconn

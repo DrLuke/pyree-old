@@ -9,6 +9,12 @@ import uuid
 from moduleManager import ModuleManager
 from timeout import Timeout
 
+from OpenGL.GL import *
+from OpenGL.GLU import *
+from OpenGL.arrays import *
+from OpenGL.GL import shaders
+import OpenGL
+
 class worker():
     def __init__(self):
         self.port = 31337
@@ -204,17 +210,27 @@ class glfwWorker():
         if not self.window:
             raise Exception("Creating window failed")
 
+        glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
+
+    def framebufferSizeCallback(self, window, width, height):
+        glViewport(0, 0, width, height)
+
     def run(self):
         glfw.make_context_current(self.window)
         if glfw.window_should_close(self.window):
             return 1
         else:
 
+            glfw.poll_events()
+
+            glClearColor(0.2, 0.3, 0.3, 1.0)
+            glClear(GL_COLOR_BUFFER_BIT)
+
             if self.currentSheet is not None:
                 self.sheetObjects[self.currentSheet["loopnode"]].run()
 
             glfw.swap_buffers(self.window)
-            glfw.poll_events()
+
 
             return 0
 
@@ -231,7 +247,7 @@ class glfwWorker():
             try:
                 self.updateSheet(message["command"]["sheet"])
             except:
-                pass    # TODO: print exception to controller (traceback.print_exc())
+                raise    # TODO: print exception to controller (traceback.print_exc())
 
 
 
@@ -245,7 +261,7 @@ class glfwWorker():
                 #print(sheet[id])
                 if(id == "initnode" or id == "loopnode"):
                     continue
-                idExists = id in self.sheetObjects
+                """idExists = id in self.sheetObjects
                 try:
                     self.sheetObjects[id]
                     idExists = True
@@ -255,7 +271,8 @@ class glfwWorker():
                 if idExists:
                     newSheetObjects[id] = self.sheetObjects[id]
                 else:
-                    newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)
+                    newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)"""
+                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)
 
             # No exceptions? replace old sheet by new sheet
             #print(newSheetObjects)
@@ -270,9 +287,10 @@ class glfwWorker():
             # Trigger initnode
             self.sheetObjects[self.currentSheet["initnode"]].run()
         except:
-            print("Exception during sheet update:")
-            print(traceback.print_exc())
-            pass    # TODO: Print exception to master
+            #print("Exception during sheet update:")
+            #print(traceback.print_exc())
+            raise
+            #pass    # TODO: Print exception to master
 
 if __name__ == "__main__":
     if not glfw.init():
@@ -282,6 +300,6 @@ if __name__ == "__main__":
 
     while 1:
         mainWorker.run()
-        time.sleep(0.001)
+        time.sleep(0.01)
 else:
     raise Exception("Slave must be run as main")

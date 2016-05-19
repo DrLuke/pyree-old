@@ -211,24 +211,77 @@ class Worker:
         self.workerTreeItem.setIcon(0, QIcon())
         self.workerTreeItem.setToolTip(0, "Worker in good health")
 
+    def startRepeat(self, monitor):
+        """ Start monitor code execution. If it's already running, restart it from scratch. """
+        request = {"msgid": uuid.uuid4().hex, "status": ["command", 0], "command": {"monitor": monitor, "setrunning": "start"}}
+
+        self.connection.outbuf += json.dumps(request) + "\n"
+        self.monitorState[monitor]["state"] = "ok"
+
+    def stop(self, monitor):
+        """ Stop monitor code execution. """
+        request = {"msgid": uuid.uuid4().hex, "status": ["command", 0], "command": {"monitor": monitor, "setrunning": "stop"}}
+
+        self.connection.outbuf += json.dumps(request) + "\n"
+        self.monitorState[monitor]["state"] = "stopped"
+
 class WorkerHandler():
     def __init__(self, workerDockWidget, sheethandler):
         self.workerDockWidget = workerDockWidget
         self.sheethandler = sheethandler
 
         self.connections = {}
-        #self.workers = {}
+        self.currentWorker = None
+        self.currentMonitor = None
 
         self.workerDockWidget.workerTree.itemClicked.connect(self.itemClicked)
+        self.workerDockWidget.newConnButton.clicked.connect(self.buttonClicked)
+        self.workerDockWidget.startRepeatButton.clicked.connect(self.startRepeatClicked)
+        self.workerDockWidget.stopButton.clicked.connect(self.stopClicked)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.tick)
         self.timer.start(20)
 
-        self.workerDockWidget.newConnButton.clicked.connect(self.buttonClicked)
+
 
     def itemClicked(self, treeItem, columnIndex):
         self.sheethandler.itemClickedWorker(treeItem, columnIndex)
+
+        monitorFound = False
+        for key in self.connections:
+            for monitor in self.connections[key][1].monitorState:
+                if treeItem == self.connections[key][1].monitorState[monitor]["treeitem"]:
+                    self.currentMonitor = monitor
+                    self.currentWorker = self.connections[key][1]
+                    monitorFound = True
+                    self.workerDockWidget.startRepeatButton.setEnabled(True)
+                    self.updateMonitorControls(self.connections[key][1].monitorState[monitor]["state"])
+
+        if not monitorFound:
+            self.workerDockWidget.startRepeatButton.setEnabled(False)
+            self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_play.png"))
+            self.workerDockWidget.stopButton.setEnabled(False)
+
+    def startRepeatClicked(self, event):
+        if self.currentMonitor is not None and self.currentWorker is not None:
+            self.currentWorker.startRepeat(self.currentMonitor)
+            self.updateMonitorControls(self.currentWorker.monitorState[self.currentMonitor]["state"])
+
+    def stopClicked(self, event):
+        if self.currentMonitor is not None and self.currentWorker is not None:
+            self.currentWorker.stop(self.currentMonitor)
+            self.updateMonitorControls(self.currentWorker.monitorState[self.currentMonitor]["state"])
+
+    def updateMonitorControls(self, state):
+        if state == "ok":
+            self.workerDockWidget.stopButton.setEnabled(True)
+            self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_repeat_blue.png"))
+            self.workerDockWidget.startRepeatButton.setToolTip("Restart monitor")
+        elif state == "stopped":
+            self.workerDockWidget.stopButton.setEnabled(False)
+            self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_play.png"))
+            self.workerDockWidget.startRepeatButton.setToolTip("Start monitor")
 
     def buttonClicked(self):
         newIp = self.workerDockWidget.newConnCombobox.currentText()

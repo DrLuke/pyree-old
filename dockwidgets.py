@@ -41,11 +41,13 @@ class WorkerDockWidget(QDockWidget):
         self.startRepeatButton = QPushButton(self.controlsWidget)
         self.startRepeatButton.setIcon(QIcon("resources/icons/control_play.png"))
         self.startRepeatButton.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.startRepeatButton.setEnabled(False)
         self.controlsWidgetLayout.addWidget(self.startRepeatButton, 0, 0, 1, 1)
 
         self.stopButton = QPushButton(self.controlsWidget)
-        self.stopButton.setIcon(QIcon("resources/icons/control_play.png"))
+        self.stopButton.setIcon(QIcon("resources/icons/control_stop.png"))
         self.stopButton.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.stopButton.setEnabled(False)
         self.controlsWidgetLayout.addWidget(self.stopButton, 0, 1, 1, 1)
 
         self.controlsSpacer = QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Fixed)

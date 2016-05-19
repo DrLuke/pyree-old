@@ -201,6 +201,7 @@ class glfwWorker():
         self.parent = parent
         self.monitor = monitor
 
+        self.running = True
         self.modman = ModuleManager()
 
         self.currentSheet = None
@@ -226,8 +227,10 @@ class glfwWorker():
             glClearColor(0.2, 0.3, 0.3, 1.0)
             glClear(GL_COLOR_BUFFER_BIT)
 
-            if self.currentSheet is not None:
+            if self.currentSheet is not None and self.running:
                 self.sheetObjects[self.currentSheet["loopnode"]].run()
+            else:
+                pass    # TODO: Display default thing with monitor and resolution
 
             glfw.swap_buffers(self.window)
 
@@ -237,17 +240,18 @@ class glfwWorker():
     def receiveCommand(self, message):
         print("Received command:" + str(message))  # TODO: Check command validity, process command further
 
-        sheetCommand = False
-        try:
-            message["command"]["sheet"]
-            sheetCommand = True
-        except KeyError:
-            pass
-        if sheetCommand:
-            try:
-                self.updateSheet(message["command"]["sheet"])
-            except:
-                raise    # TODO: print exception to controller (traceback.print_exc())
+
+        if "sheet" in message["command"]:
+            self.updateSheet(message["command"]["sheet"])
+        if "setrunning" in message["command"]:
+            if message["command"]["setrunning"] == "stop":
+                self.running = False
+            if message["command"]["setrunning"] == "start" and self.running == False:
+                self.running = True
+            if message["command"]["setrunning"] == "start" and self.running == True:
+                self.running = True
+                if self.currentSheet is not None:
+                    self.updateSheet(self.currentSheet)
 
 
 

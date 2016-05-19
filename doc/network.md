@@ -42,7 +42,6 @@ Command Schemas exchanges between the controller and worker that are meant direc
 This is a request for data. The reply to this request is outlined in `datareply (array of strings)` Valid requests and their replies are:
 * `monitors`: The controller requests an array of strings of all available monitors (e.g. `["DVI-I-1", "DVI-I-2"]`)
 
-
 ### GLFW Commands
 Command schemas exchanged between the controller and glfw-workers.
 
@@ -53,6 +52,11 @@ If a worker doesn't exist for this monitor yet, a worker will be created. If the
 #### `sheet (object)`
 This contains the sheet this worker shall be running. It looks at the IDs of old and new nodes, and keeps objects with identical IDs. Objects whose ID isn't present in a new sheet will be deleted, while new objects will be generated for new IDs.  
 If `sheet` is set, all other commands in this message will be ignored.
+
+#### `setrunning (string)`
+Set whether or not the monitor is running or not.
+* `start`: Start or resume running code. If it's already running, it will instead restart and run from the beginning.
+* `stop`: Stop running code.
 
 ## Reply Types
 This section describes different reply messages. This could for example contain the available monitors after the controller requested them. Reply messages must have refid set.

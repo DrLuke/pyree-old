@@ -192,13 +192,16 @@ class WorkerHandler():
         self.connections = {}
         #self.workers = {}
 
-        self.inbuf = ""
+        self.workerDockWidget.workerTree.itemClicked.connect(self.itemClicked)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.tick)
         self.timer.start(20)
 
         self.workerDockWidget.newConnButton.clicked.connect(self.buttonClicked)
+
+    def itemClicked(self, treeItem, columnIndex):
+        self.sheethandler.itemClickedWorker(treeItem, columnIndex)
 
     def buttonClicked(self):
         newIp = self.workerDockWidget.newConnCombobox.currentText()

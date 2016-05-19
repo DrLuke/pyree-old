@@ -18,7 +18,6 @@ class SheetHandler:
         self.sheetWidget.newSheetButton.clicked.connect(self.newOtherSheet)
 
         self.workerWidget = workerWidget
-        self.workerWidget.workerTree.itemClicked.connect(self.itemClickedWorker)
 
         self.sheets = []
         self.currentSheet = None

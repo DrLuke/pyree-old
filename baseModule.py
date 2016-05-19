@@ -45,12 +45,15 @@ class BaseNode:
         self.id = objid
         self.extraNodeData = extraNodeData
 
-        self.init()
+        #self.init()
+
+    def __del__(self):
+        self.delete()
 
     def fireExec(self, index):
         try:
-            targetObj = self.runtime.sheetObjects[self.relations["outputs"][index][0]]  # Obtain target object
-            targetFun = type(targetObj).inputDefs[self.relations["outputs"][index][1]].function  # Obtain function
+            targetObj = self.runtime.sheetObjects[self.relations["outputs"][index][0][0]]  # Obtain target object
+            targetFun = type(targetObj).inputDefs[self.relations["outputs"][index][0][1]].function  # Obtain function
 
             targetFun(targetObj)  # Call function for object
             return 0
@@ -59,19 +62,21 @@ class BaseNode:
 
     def getInput(self, index):
         try:
-            targetObj = self.runtime.sheetObjects[self.relations["inputs"][index][0]]  # Obtain target object
-            targetFun = type(targetObj).outputDefs[self.relations["inputs"][index][1]].function  # Obtain function
+            targetObj = self.runtime.sheetObjects[self.relations["inputs"][index][0][0]]  # Obtain target object
+            targetFun = type(targetObj).outputDefs[self.relations["inputs"][index][0][1]].function  # Obtain function
 
             return targetFun(targetObj)
         except IndexError:
             return None     # TODO: Improve this to only find keyerrors on self.relations["outputs"][index][0]
 
 
-
     def init(self):
         pass
 
     def run(self):
+        pass
+
+    def delete(self):
         pass
 
     # Input and Output tuples: (displayname of IO, type of IO). Must be strings or you will have a bad time

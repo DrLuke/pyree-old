@@ -255,7 +255,6 @@ class WorkerHandler():
                     self.currentMonitor = monitor
                     self.currentWorker = self.connections[key][1]
                     monitorFound = True
-                    self.workerDockWidget.startRepeatButton.setEnabled(True)
                     self.updateMonitorControls(self.connections[key][1].monitorState[monitor]["state"])
 
         if not monitorFound:
@@ -275,10 +274,12 @@ class WorkerHandler():
 
     def updateMonitorControls(self, state):
         if state == "ok":
+            self.workerDockWidget.startRepeatButton.setEnabled(True)
             self.workerDockWidget.stopButton.setEnabled(True)
             self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_repeat_blue.png"))
             self.workerDockWidget.startRepeatButton.setToolTip("Restart monitor")
         elif state == "stopped":
+            self.workerDockWidget.startRepeatButton.setEnabled(True)
             self.workerDockWidget.stopButton.setEnabled(False)
             self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_play.png"))
             self.workerDockWidget.startRepeatButton.setToolTip("Start monitor")
@@ -328,7 +329,7 @@ class WorkerHandler():
         # TODO: FIX THIS SHIT UP OMG THIS IS SO BAD AAAAAAHHHHHHH
         for key in dict(self.connections):
             for monitorKey in self.connections[key][1].monitorState:
-                if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None:
+                if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None and not self.sheethandler.sheetView.emptySheet:
                     curRel = self.sheethandler.sheetView.createRelationship()
                     if self.connections[key][1].monitorState[monitorKey]["sheet"] == self.sheethandler.currentSheet and not self.connections[key][1].monitorState[monitorKey]["sheet"].relations == curRel:
 

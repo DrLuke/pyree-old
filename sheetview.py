@@ -227,14 +227,14 @@ class Node(QGraphicsRectItem):
 
             if target is not None and isinstance(target, Node.io):
                 bezier = None
-                if self.iodir == "output" and target.iodir == "input" and self.iotype == target.iotype:
+                if self.iodir == "output" and target.iodir == "input" and (self.iotype == target.iotype or not self.iotype or not target.iotype):
                     bezier = Node.io.BezierCurve(self, target)
                     if not self.iotype == "exec":
                         target.delAllBezier()
                     elif self.iotype == "exec":
                         if len(self.bezier) >= 1:
                             self.delAllBezier()
-                elif self.iodir == "input" and target.iodir == "output" and self.iotype == target.iotype:
+                elif self.iodir == "input" and target.iodir == "output" and (self.iotype == target.iotype or not self.iotype or not target.iotype):
                     bezier = Node.io.BezierCurve(target, self)
                     if not self.iotype == "exec":
                         self.delAllBezier()

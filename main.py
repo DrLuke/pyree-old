@@ -62,6 +62,8 @@ class ShaderWindow(QMainWindow):
         self.sheethandler = SheetHandler(self.sheetwidget, self.workerwidget, self.sheetview, self)
         self.workerHandler = WorkerHandler(self.workerwidget, self.sheethandler)
 
+        self.sheetview.sheethandler = self.sheethandler
+
         self.addDockWidget(Qt.LeftDockWidgetArea, self.workerwidget)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.sheetwidget)
 

@@ -25,6 +25,11 @@ class SheetHandler:
         self.sheetView = sheetView
         self.mainWindow = mainWindow
 
+    def getSheetRel(self, name):
+        for sheet in self.sheets:
+            if sheet.name == name:
+                return sheet.relations
+
     def newMonitorSheet(self, name, treeitem):
         newSheet = Sheet(name, treeitem, monitorSheet=True)
         self.sheets.append(newSheet)
@@ -32,6 +37,9 @@ class SheetHandler:
 
     def newOtherSheet(self):
         newName = self.sheetWidget.newSheetLineedit.text()
+        for sheet in self.sheets:   # Prevent duplicate names
+            if newName == sheet.name:
+                return
         if len(newName) > 0:
             newTreeitem = QTreeWidgetItem()
             newTreeitem.setText(0, newName)

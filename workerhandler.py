@@ -327,6 +327,7 @@ class WorkerHandler():
 
         # Check if sheets changed, and transmit them if they did change
         # TODO: FIX THIS SHIT UP OMG THIS IS SO BAD AAAAAAHHHHHHH
+        # TODO: Check if subsheets are included. If yet, send them aswell with subsheet keyword
         for key in dict(self.connections):
             for monitorKey in self.connections[key][1].monitorState:
                 if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None and not self.sheethandler.sheetView.emptySheet:
@@ -336,6 +337,12 @@ class WorkerHandler():
                         self.connections[key][1].monitorState[monitorKey]["sheet"].relations = curRel
 
                         command = {"msgid": uuid.uuid4().hex, "status": ["command", 0], "command": {"monitor": monitorKey, "sheet": curRel}}
+
+                        # TODO. Make it only send necessary sheets
+                        command["command"]["subsheets"] = {}
+                        for sheet in self.sheethandler.sheets:
+                            command["command"]["subsheets"][sheet.name] = sheet.relations
+
                         self.connections[key][1].connection.outbuf += json.dumps(command) + "\n"
 
         # Get all sockets to read from

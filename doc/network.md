@@ -53,6 +53,9 @@ If a worker doesn't exist for this monitor yet, a worker will be created. If the
 This contains the sheet this worker shall be running. It looks at the IDs of old and new nodes, and keeps objects with identical IDs. Objects whose ID isn't present in a new sheet will be deleted, while new objects will be generated for new IDs.  
 If `sheet` is set, all other commands in this message will be ignored.
 
+#### `subsheets (object)`
+This containts necessary subsheets to be included in other sheets. Each sheet will have the same format as `sheet (object)` above, with the key being the name of the sheet.
+
 #### `setrunning (string)`
 Set whether or not the monitor is running or not.
 * `start`: Start or resume running code. If it's already running, it will instead restart and run from the beginning.

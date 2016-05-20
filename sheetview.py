@@ -412,6 +412,11 @@ class SheetView(QGraphicsView):
                     ids.append([link.ioend.parent.id, link.ioend.index])
                 nodeRelations["outputs"].append(ids)
 
+            """if nodeRelations["nodename"] == "drluke.builtin.SubSheet":
+                if "sheetname" in node.extraNodeData:
+                    if node.extraNodeData["sheetname"]:
+                        node.extraNodeData["sheet"] = self.sheethandler.sheets[node.extraNodeData["sheetname"]].relations"""
+
             nodeRelations["extraData"] = node.extraNodeData
 
             relationship[node.id] = nodeRelations
@@ -485,6 +490,8 @@ class SheetView(QGraphicsView):
         self.scene = QGraphicsScene()
         super().__init__(self.scene)
 
+        self.sheethandler = None    # Will be set externally
+
         self.setDragMode(QGraphicsView.RubberBandDrag)
 
         self.emptySheet = True  # Don't allow any modifications until a new sheet is created or loaded
@@ -507,7 +514,7 @@ class SheetView(QGraphicsView):
         if not self.emptySheet:
             super().mousePressEvent(event)
             #if not event.isAccepted():
-            if event.button() == Qt.RightButton:
+            if event.button() == Qt.MiddleButton:
                 ns = NodeSelector(self.modman)
                 if ns.exec():
                     if issubclass(ns.data["node"], baseModule.BaseNode):
@@ -522,8 +529,8 @@ class SheetView(QGraphicsView):
                 if len(items) == 1:
                     item = items[0]
                     if isinstance(item, Node):
-                        if item.nodedata.settingsDialog is not None:
-                            dialog = item.nodedata.settingsDialog(item.extraNodeData)
+                        if item.nodedata.settingsDialog is not None:    # TODO: Maybe check if it's subclass of QDialog
+                            dialog = item.nodedata.settingsDialog(item.extraNodeData, self, self.sheethandler)
                             if dialog.exec():
                                 item.extraNodeData = dialog.data
 

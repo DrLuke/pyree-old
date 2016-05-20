@@ -97,7 +97,7 @@ class worker():
                 with Timeout(1):
                     self.glfwWorkers[key].run()
             except Timeout.Timeout:
-                print("Error: run() for worker '" + glfw.get_monitor_name(self.glfwWorkers[key].monitor) + "' timed out after 1 second.")   # TODO: send error message to controller
+                print("Error: run() for worker '" + bytes.decode(glfw.get_monitor_name(self.glfwWorkers[key].monitor)) + "' timed out after 1 second.")   # TODO: send error message to controller
 
 
     def parseMessageBuf(self):
@@ -206,6 +206,7 @@ class glfwWorker():
 
         self.currentSheet = None
         self.sheetObjects = {}
+        self.subsheets = {}
 
         self.videomode = glfw.get_video_mode(monitor)
         #self.window = glfw.create_window(100, 100, "Hello World", monitor, None)
@@ -220,9 +221,7 @@ class glfwWorker():
 
         glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
 
-    def __del__(self):
-        if self.window:
-            glfw.destroy_window(self.window)
+        self.time = glfw.get_time()
 
     def framebufferSizeCallback(self, window, width, height):
         glViewport(0, 0, width, height)
@@ -230,6 +229,7 @@ class glfwWorker():
     def run(self):
         glfw.make_context_current(self.window)
         if glfw.window_should_close(self.window):
+            glfw.destroy_window(self.window)
             return 1
         else:
 
@@ -237,6 +237,8 @@ class glfwWorker():
 
             glClearColor(0.2, 0.3, 0.3, 1.0)
             glClear(GL_COLOR_BUFFER_BIT)
+
+            self.time = glfw.get_time()
 
             if self.currentSheet is not None and self.running:
                 self.sheetObjects[self.currentSheet["loopnode"]].run()
@@ -249,17 +251,19 @@ class glfwWorker():
             return 0
 
     def receiveCommand(self, message):
-        print("Received command:" + str(message))  # TODO: Check command validity, process command further
+        print("Received command:" + str(message))
 
-
+        if "subsheets" in message["command"]:
+            self.subsheets = message["command"]["subsheets"]
+            print(self.subsheets)
         if "sheet" in message["command"]:
             self.updateSheet(message["command"]["sheet"])
         if "setrunning" in message["command"]:
             if message["command"]["setrunning"] == "stop":
                 self.running = False
-            if message["command"]["setrunning"] == "start" and self.running == False:
+            if message["command"]["setrunning"] == "start" and self.running is False:
                 self.running = True
-            if message["command"]["setrunning"] == "start" and self.running == True:
+            if message["command"]["setrunning"] == "start" and self.running is True:
                 self.running = True
                 if self.currentSheet is not None:
                     self.updateSheet(self.currentSheet)
@@ -267,30 +271,16 @@ class glfwWorker():
 
 
     def updateSheet(self, sheet):
-        #print("Updating Sheet")
         newSheetObjects = {}
         try:
             for id in sheet:
-                #print(" --")
-                #print(id)
-                #print(sheet[id])
                 if(id == "initnode" or id == "loopnode"):
                     continue
-                """idExists = id in self.sheetObjects
-                try:
-                    self.sheetObjects[id]
-                    idExists = True
-                except KeyError:
-                    print("Id doesn't exist")
 
-                if idExists:
-                    newSheetObjects[id] = self.sheetObjects[id]
-                else:
-                    newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)"""
-                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id)
+                print(sheet[id]["nodename"] + " " + str(sheet[id]["extraData"]))
+                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id, sheet[id]["extraData"])
 
             # No exceptions? replace old sheet by new sheet
-            #print(newSheetObjects)
             self.sheetObjects = newSheetObjects
             self.currentSheet = sheet
 

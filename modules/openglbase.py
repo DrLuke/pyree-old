@@ -154,7 +154,7 @@ class ShaderProgram(BaseNode):
             self.vertexShader = shaders.compileShader(self.vertexShaderCode, GL_VERTEX_SHADER)
         except:
             print(traceback.print_exc())
-            self.vertexShader = shaders.compileShader(self.defaultVertexShaderCode, GL_FRAGMENT_SHADER)
+            self.vertexShader = shaders.compileShader(self.defaultVertexShaderCode, GL_VERTEX_SHADER)
 
         # -- Generate Shader program
         if isinstance(self.fragmentShader, int) and isinstance(self.vertexShader, int):
@@ -203,7 +203,7 @@ class RenderVAO(BaseNode):
         if self.uniformsContainer is not None:
             for uniformName in self.uniformsContainer:
                 uniformLoc = glGetUniformLocation(self.shaderprogram, uniformName)
-                if not uniformLoc == -1:    # Location is valid
+                if not uniformLoc == -1 and None not in self.uniformsContainer[uniformName]:    # Location is valid
                     if len(self.uniformsContainer[uniformName]) == 1:
                         glUniform1f(uniformLoc, self.uniformsContainer[uniformName][0])
                     elif len(self.uniformsContainer[uniformName]) == 2:

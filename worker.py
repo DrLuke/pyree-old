@@ -277,7 +277,6 @@ class glfwWorker():
                 if(id == "initnode" or id == "loopnode"):
                     continue
 
-                print(sheet[id]["nodename"] + " " + str(sheet[id]["extraData"]))
                 newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id, sheet[id]["extraData"])
 
             # No exceptions? replace old sheet by new sheet

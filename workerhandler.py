@@ -27,16 +27,24 @@ class Connection():
         self.outbuf = ""
 
     def sockrecv(self):
-        buf = self.socket.recv(4096)
-        if not len(buf) > 0:
+        try:
+            buf = self.socket.recv(4096)
+            if not len(buf) > 0:
+                self.valid = False
+            else:
+                self.callback(bytes.decode(buf))    # If anything was received, push it into the worker object
+        except:
             self.valid = False
-        else:
-            self.callback(bytes.decode(buf))    # If anything was received, push it into the worker object
 
     def socksend(self):
         # Write outbuf to socket
+
         if self.outbuf:
-            sent = self.socket.send(str.encode(self.outbuf))
+            try:
+                sent = self.socket.send(str.encode(self.outbuf))
+            except:
+                self.valid = False
+                return
             self.outbuf = self.outbuf[sent:]    # Delete everything that was sent
 
     def send(self, message):

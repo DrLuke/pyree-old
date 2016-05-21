@@ -1,9 +1,9 @@
 from baseModule import BaseNode, Pin
 
-from PyQt5.QtWidgets import QDialog, QPushButton, QComboBox, QWidget, QLabel, QGridLayout, QSizePolicy
+from PyQt5.QtWidgets import QDialog, QPushButton, QComboBox, QWidget, QLabel, QGridLayout, QSizePolicy, QFormLayout, QPlainTextEdit, QDoubleSpinBox
 
 
-__nodes__ = ["Loop", "Init", "If", "SubSheet"]
+__nodes__ = ["Loop", "Init", "If", "SubSheet", "ToString", "ToFloat", "AppendList", "GetTime"]
 
 class Loop(BaseNode):
     nodeName = "drluke.builtin.Loop"
@@ -124,6 +124,8 @@ class SubSheet(BaseNode):
         self.sheetObjects = {}
         self.subsheets = self.runtime.subsheets
 
+        self.videomode = self.runtime.videomode
+
         self.time = self.runtime.time
 
         print("--- Subsheet node:")
@@ -145,6 +147,7 @@ class SubSheet(BaseNode):
     def runLoop(self):
         self.running = self.runtime.running
         self.time = self.runtime.time
+        self.videomode = self.runtime.videomode
 
         try:
             self.sheetObjects[self.currentSheet["loopnode"]].run()
@@ -187,6 +190,170 @@ class SubSheet(BaseNode):
         Pin("Init done", "exec", None),
         Pin("Loop done", "exec", None),
         Pin("Outputs", "list", None, "List of values coming from the subsheet")
+    ]
+
+
+class ToString(BaseNode):
+    nodeName = "drluke.builtin.ToString"
+    name = "(To) String"
+    desc = "Can (try to) convert anything to a string or provide a string by itself."
+    category = "Builtin"
+    placable = True
+
+    class settingsDialog(QDialog):
+        """ Dialog for setting vertex points """
+
+        def __init__(self, extraData, sheetview, sheethandler):
+            super().__init__()
+
+            self.data = extraData
+
+            self.sheetview = sheetview
+            self.sheethandler = sheethandler
+
+            self.containerWidgetLayout = QFormLayout(self)
+            self.containerWidgetLayout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+            self.containerWidgetLayout.setContentsMargins(6, 6, 6, 6)
+
+            self.containerWidgetLayout.addRow("Enter contents of your string below", None)
+
+            self.plainTextEdit = QPlainTextEdit()
+            if "string" in self.data:
+                self.plainTextEdit.setPlainText(self.data["string"])
+            self.plainTextEdit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.containerWidgetLayout.addRow(self.plainTextEdit)
+
+            self.okButton = QPushButton()
+            self.okButton.setText("Ok")
+            self.okButton.clicked.connect(self.okclicked)
+            self.containerWidgetLayout.addRow(self.okButton)
+
+        def okclicked(self, event):
+            self.data = {"string": self.plainTextEdit.toPlainText()}
+            self.done(True)
+
+    def getString(self):
+        if "string" in self.extraNodeData:
+            return self.extraNodeData["string"]
+        else:
+            try:
+                return str(self.getInput(0))
+            except:
+                return ""
+
+    inputDefs = [
+        Pin("Anything", "", None)
+    ]
+
+    outputDefs = [
+        Pin("String", "string", getString)
+    ]
+
+class ToFloat(BaseNode):
+    nodeName = "drluke.builtin.ToFloat"
+    name = "(To) Float"
+    desc = "Can (try to) convert anything to a float or provide a float by itself."
+    category = "Builtin"
+    placable = True
+
+    class settingsDialog(QDialog):
+        """ Dialog for setting vertex points """
+
+        def __init__(self, extraData, sheetview, sheethandler):
+            super().__init__()
+
+            self.data = extraData
+
+            self.sheetview = sheetview
+            self.sheethandler = sheethandler
+
+            self.containerWidgetLayout = QFormLayout(self)
+            self.containerWidgetLayout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+            self.containerWidgetLayout.setContentsMargins(6, 6, 6, 6)
+
+            self.containerWidgetLayout.addRow("Enter your float below:", None)
+
+            self.spinBox = QDoubleSpinBox()
+            if "float" in self.data:
+                self.spinBox.setValue(self.data["float"])
+            self.spinBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.containerWidgetLayout.addRow(self.spinBox)
+
+            self.okButton = QPushButton()
+            self.okButton.setText("Ok")
+            self.okButton.clicked.connect(self.okclicked)
+            self.containerWidgetLayout.addRow(self.okButton)
+
+        def okclicked(self, event):
+            self.data = {"float": self.spinBox.value()}
+            self.done(True)
+
+    def getFloat(self):
+        if "float" in self.extraNodeData:
+            return self.extraNodeData["float"]
+        else:
+            try:
+                return float(self.getInput(0))
+            except:
+                return 0
+
+    inputDefs = [
+        Pin("Anything", "", None)
+    ]
+
+    outputDefs = [
+        Pin("Float", "string", getFloat)
+    ]
+
+class AppendList(BaseNode):
+    nodeName = "drluke.builtin.List"
+    name = "Append List"
+    desc = "A"
+    category = "Builtin"
+    placable = True
+
+    def init(self):
+        self.list = []
+
+    def run(self):
+        if isinstance(self.getInput(1), list):
+            self.list = self.getInput(1)
+        else:
+            self.list = []
+
+        self.list.append(self.getInput(2))
+
+        self.fireExec(0)
+
+    def getList(self):
+        return self.list
+
+    inputDefs = [
+        Pin("Append", "exec", run),
+        Pin("List", "list", None, "Leave empty to create new list"),
+        Pin("To Append", "", None, "Item to be appended to list")
+    ]
+
+    outputDefs = [
+        Pin("exec", "exec", None),
+        Pin("List", "list", getList)
+    ]
+
+class GetTime(BaseNode):
+    nodeName = "drluke.builtin.Time"
+    name = "Time"
+    desc = "Get the time since program Start"
+    category = "Builtin"
+    placable = True
+
+    def getTime(self):
+        return self.runtime.time
+
+    inputDefs = [
+    ]
+
+    outputDefs = [
+        Pin("Time", "float", getTime)
     ]
 
 

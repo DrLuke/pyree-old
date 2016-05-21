@@ -3,6 +3,7 @@ from select import select
 import re
 import json
 import uuid
+from copy import deepcopy
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QTreeWidgetItem
@@ -319,6 +320,20 @@ class WorkerHandler():
             #self.workers[str(ip) + ":" + str(port)] = newWorker
             self.connections[newconn.socket] = (newconn, newWorker)
 
+    def compareSheetsWithoutPos(self, rel1, rel2):
+        """ Compares 2 relations WITHOUT taking position into account! """
+        rel1 = deepcopy(rel1)
+        for key in rel1:
+            if key is not "loopnode" and key is not "initnode" and "pos" in rel1[key]:
+                del rel1[key]["pos"]
+
+        rel2 = deepcopy(rel2)
+        for key in rel2:
+            if key is not "loopnode" and key is not "initnode" and "pos" in rel2[key]:
+                del rel2[key]["pos"]
+
+        return (rel1 == rel2)
+
     def tick(self):
         # Check if socks changed
         for sock in self.connections:
@@ -340,7 +355,7 @@ class WorkerHandler():
             for monitorKey in self.connections[key][1].monitorState:
                 if self.connections[key][1].monitorState[monitorKey]["sheet"].relations is not None and not self.sheethandler.sheetView.emptySheet:
                     curRel = self.sheethandler.sheetView.createRelationship()
-                    if self.connections[key][1].monitorState[monitorKey]["sheet"] == self.sheethandler.currentSheet and not self.connections[key][1].monitorState[monitorKey]["sheet"].relations == curRel:
+                    if self.connections[key][1].monitorState[monitorKey]["sheet"] == self.sheethandler.currentSheet and not self.compareSheetsWithoutPos(self.connections[key][1].monitorState[monitorKey]["sheet"].relations, curRel):
 
                         self.connections[key][1].monitorState[monitorKey]["sheet"].relations = curRel
 

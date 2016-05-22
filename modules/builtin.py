@@ -1,9 +1,11 @@
 from baseModule import BaseNode, Pin
 
+import random, uuid
+
 from PyQt5.QtWidgets import QDialog, QPushButton, QComboBox, QWidget, QLabel, QGridLayout, QSizePolicy, QFormLayout, QPlainTextEdit, QDoubleSpinBox
 
 
-__nodes__ = ["Loop", "Init", "If", "SubSheet", "ToString", "ToFloat", "AppendList", "GetTime", "GetResolution"]
+__nodes__ = ["Loop", "Init", "If", "SubSheet", "ToString", "ToFloat", "AppendList", "GetTime", "GetResolution", "SubSheetMixer"]
 
 class Loop(BaseNode):
     nodeName = "drluke.builtin.Loop"
@@ -305,15 +307,16 @@ class SubSheet(BaseNode):
 
         self.videomode = self.runtime.videomode
 
+        self.deltatime = self.runtime.deltatime
         self.time = self.runtime.time
 
-        print("--- Subsheet node:")
-        print(self.extraNodeData)
         if "sheetname" in self.extraNodeData:
             self.createSheet(self.runtime.subsheets[self.extraNodeData["sheetname"]])
 
     def runInit(self):
         self.running = self.runtime.running
+
+        self.deltatime = self.runtime.deltatime
         self.time = self.runtime.time
 
         try:
@@ -342,7 +345,7 @@ class SubSheet(BaseNode):
                 if (id == "initnode" or id == "loopnode"):
                     continue
 
-                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id,
+                newSheetObjects[id] = self.runtime.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id,
                                                                                         sheet[id]["extraData"])
 
             # No exceptions? replace old sheet by new sheet
@@ -464,18 +467,22 @@ class AppendList(BaseNode):
 class GetTime(BaseNode):
     nodeName = "drluke.builtin.Time"
     name = "Time"
-    desc = "Get the time since program Start"
+    desc = "Get the time since program Start aswell as deltatime between frames"
     category = "Builtin"
     placable = True
 
     def getTime(self):
         return self.runtime.time
 
+    def getDeltaTime(self):
+        return self.runtime.deltatime
+
     inputDefs = [
     ]
 
     outputDefs = [
-        Pin("Time", "float", getTime)
+        Pin("Time", "float", getTime),
+        Pin("Delta", "float", getDeltaTime)
     ]
 
 
@@ -498,7 +505,7 @@ class SheetInput(BaseNode):
 
 class SubSheetMixer(BaseNode):
     nodeName = "drluke.builtin.SubSheetMixer"
-    name = "Subsheet Mixer"
+    name = "GPN Subsheet Mixer"
     desc = "Randomly mix through sheets"
     category = "Builtin"
     placable = True
@@ -518,7 +525,7 @@ class SubSheetMixer(BaseNode):
             self.containerWidgetLayout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
             self.containerWidgetLayout.setContentsMargins(6, 6, 6, 6)
 
-            self.containerWidgetLayout.addRow("Enter contents of your string below", None)
+            self.containerWidgetLayout.addRow("Enter the names of sheets that are in the mix (one sheet per line):", None)
 
             self.plainTextEdit = QPlainTextEdit()
             if "string" in self.data:
@@ -533,82 +540,46 @@ class SubSheetMixer(BaseNode):
 
         def okclicked(self, event):
             self.data = {"string": self.plainTextEdit.toPlainText()}
+            self.data["sheets"] = self.plainTextEdit.toPlainText().split("\n")
             self.done(True)
 
     def init(self):
-        self.running = self.runtime.running
-        self.modman = self.runtime.modman
+        self.subsheetsObjs = {}
+        self.currentSheetObj = None
+        if "sheets" in self.extraNodeData:
+            for sheet in self.extraNodeData["sheets"]:
+                if sheet in self.runtime.subsheets:
+                    self.subsheetsObjs[sheet] = SubSheet(self.runtime, self.runtime.subsheets[sheet], uuid.uuid4().hex, {"sheetname": sheet})
+                    self.subsheetsObjs[sheet].init()
+                    #self.subsheetsObjs[sheet].createSheet(self.runtime.subsheets[sheet])
 
-        self.currentSheet = None
-        self.sheetObjects = {}
-        self.subsheets = self.runtime.subsheets
+        self.currentSheet = random.choice(list(self.subsheetsObjs.keys()))
+        self.currentSheetObj = self.subsheetsObjs[self.currentSheet]
 
-        self.videomode = self.runtime.videomode
-
-        self.time = self.runtime.time
-
-        print("--- Subsheet node:")
-        print(self.extraNodeData)
-        if "sheetname" in self.extraNodeData:
-            self.createSheet(self.runtime.subsheets[self.extraNodeData["sheetname"]])
-
-    def runInit(self):
-        self.running = self.runtime.running
-        self.time = self.runtime.time
-
-        try:
-            self.sheetObjects[self.currentSheet["initnode"]].run()
-        except KeyError:
-            print("subsheet initnode failed")
-            pass
         self.fireExec(0)
 
-    def runLoop(self):
-        self.running = self.runtime.running
-        self.time = self.runtime.time
-        self.videomode = self.runtime.videomode
-
+    def run(self):
         try:
-            self.sheetObjects[self.currentSheet["loopnode"]].run()
+            if self.currentSheetObj is not None:
+                self.currentSheetObj.sheetObjects[self.runtime.subsheets[self.currentSheet]["loopnode"]].run()
         except KeyError:
             print("subsheet loopnode failed")
             pass
+
         self.fireExec(1)
 
-    def createSheet(self, sheet):
-        newSheetObjects = {}
-        try:
-            for id in sheet:
-                if (id == "initnode" or id == "loopnode"):
-                    continue
-
-                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id,
-                                                                                        sheet[id]["extraData"])
-
-            # No exceptions? replace old sheet by new sheet
-            self.sheetObjects = newSheetObjects
-            self.currentSheet = sheet
-
-            # Call all init functions of nodes (again). This can't happen in __init__
-            # as some dependencies might not exist yet.
-            for node in self.sheetObjects.values():
-                node.init()
-
-            # Trigger initnode
-            self.sheetObjects[self.currentSheet["initnode"]].run()
-        except:
-            raise   # TODO: Handle?
+    def changeSheet(self):
+        self.currentSheet = random.choice(list(self.subsheetsObjs.keys()))
+        self.currentSheetObj = self.subsheetsObjs[self.currentSheet]
 
     inputDefs = [
-        Pin("Init start", "exec", runInit),
-        Pin("Loop start", "exec", runLoop),
-        Pin("Inputs", "list", None, "List of values to be made available in the subsheet")
+        Pin("Loop", "exec", run),
+        Pin("Change", "exec", changeSheet)
     ]
 
     outputDefs = [
         Pin("Init done", "exec", None),
-        Pin("Loop done", "exec", None),
-        Pin("Outputs", "list", None, "List of values coming from the subsheet")
+        Pin("Loop done", "exec", None)
     ]
 
 class GetResolution(BaseNode):

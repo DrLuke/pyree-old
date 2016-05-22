@@ -208,6 +208,8 @@ class glfwWorker():
         self.sheetObjects = {}
         self.subsheets = {}
 
+        self.miscdata = {}  # Special cases are ~fun~! (The f stands for "FUUUCK why did I do this?!")
+
         self.videomode = glfw.get_video_mode(monitor)
         #self.window = glfw.create_window(100, 100, "Hello World", monitor, None)
         self.window = glfw.create_window(100, 100, "Hello World", None, None)
@@ -221,6 +223,7 @@ class glfwWorker():
 
         glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
 
+        self.deltatime = 0
         self.time = glfw.get_time()
 
     def framebufferSizeCallback(self, window, width, height):
@@ -238,6 +241,7 @@ class glfwWorker():
             glClearColor(0.2, 0.3, 0.3, 1.0)
             glClear(GL_COLOR_BUFFER_BIT)
 
+            self.deltatime = glfw.get_time() - self.time
             self.time = glfw.get_time()
 
             if self.currentSheet is not None and self.running:

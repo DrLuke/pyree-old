@@ -306,8 +306,11 @@ if __name__ == "__main__":
 
     mainWorker = worker()
 
+    gtime = glfw.get_time()
     while 1:
+        dt = glfw.get_time() - gtime
         mainWorker.run()
-        time.sleep(0.01)
+        time.sleep(max(0.01-dt,0))
+        gtime = glfw.get_time()
 else:
     raise Exception("Slave must be run as main")

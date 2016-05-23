@@ -102,7 +102,8 @@ class ShaderWindow(QMainWindow):
     def keyPressEvent(self, event):
         if not self.workerHandler.keyPressEvent(event):
             if not self.sheethandler.keyPressEvent(event):
-                pass
+                if not self.sheetview.keyPressEvent(event):
+                    pass
 
 
 

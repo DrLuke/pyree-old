@@ -276,7 +276,7 @@ class WorkerHandler():
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
-            event.accept()
+            #event.accept()
             if self.lastItemClicked is not None:
                 delkey = None
                 for key in self.connections:

@@ -536,7 +536,7 @@ class SheetView(QGraphicsView):
 
 
     def keyPressEvent(self, event):
-        if not event.isAccepted():
+        if True:# not event.isAccepted():
             if event.key() == Qt.Key_Delete:
                 event.accept()
                 # Delete selection except for init and loop
@@ -545,3 +545,4 @@ class SheetView(QGraphicsView):
                     if node.isSelected() and not node == self.initnode and not node == self.loopnode:
                         node.delete()
                         self.scene.removeItem(node)
+                        found = True

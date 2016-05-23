@@ -99,6 +99,11 @@ class ShaderWindow(QMainWindow):
                 self.workerHandler.loadWorkers(loadData["workers"])
                 self.sheethandler.loadSheets(loadData["otherSheets"])
 
+    def keyPressEvent(self, event):
+        if not self.workerHandler.keyPressEvent(event):
+            if not self.sheethandler.keyPressEvent(event):
+                pass
+
 
 
     def createSaveData(self):

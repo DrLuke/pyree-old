@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import QTreeWidgetItem
+from PyQt5.QtCore import Qt
 
 class Sheet():
     """Little data container class"""
@@ -24,6 +25,9 @@ class SheetHandler:
 
         self.sheetView = sheetView
         self.mainWindow = mainWindow
+
+        self.lastItemClicked = None
+
 
     def getSheetRel(self, name):
         for sheet in self.sheets:
@@ -59,6 +63,7 @@ class SheetHandler:
         self.itemClicked(treeItem, columnIndex)
 
     def itemClicked(self, treeItem, columnIndex):
+        self.lastItemClicked = treeItem
         if self.currentSheet is not None:
             self.currentSheet.relations = self.sheetView.createRelationship()
 
@@ -71,6 +76,24 @@ class SheetHandler:
                 else:
                     self.sheetView.newSheet()
                     self.currentSheet.relations = self.sheetView.createRelationship()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            event.accept()
+            if self.lastItemClicked is not None:
+                delsheet = None
+                for sheet in self.sheets:
+                    if sheet.treeitem == self.lastItemClicked:
+                        delsheet = sheet
+                if delsheet is not None:
+                    indx = self.sheetWidget.sheetTree.indexOfTopLevelItem(sheet.treeitem)
+                    self.sheetWidget.sheetTree.takeTopLevelItem(indx)
+                    self.currentSheet = None
+                    self.sheetView.scene.clear()
+                    self.sheets.remove(delsheet)
+                    return 1
+
+        return 0
 
     def saveSheets(self):
         if self.currentSheet is not None:   # Save currently opened sheet

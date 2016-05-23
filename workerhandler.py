@@ -5,10 +5,9 @@ import json
 import uuid
 from copy import deepcopy
 
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QTreeWidgetItem
 from PyQt5.QtGui import QFont, QIcon
-
 
 
 class Connection():
@@ -52,6 +51,7 @@ class Connection():
         self.outbuf += message
 
     def __del__(self):
+        print("Closing socket " + str(self.ip) + ":" + str(self.port))
         self.socket.close()
 
     def reconnect(self):
@@ -243,6 +243,8 @@ class WorkerHandler():
         self.currentWorker = None
         self.currentMonitor = None
 
+        self.lastItemClicked = None
+
         self.workerDockWidget.workerTree.itemClicked.connect(self.itemClicked)
         self.workerDockWidget.newConnButton.clicked.connect(self.buttonClicked)
         self.workerDockWidget.startRepeatButton.clicked.connect(self.startRepeatClicked)
@@ -256,6 +258,7 @@ class WorkerHandler():
 
     def itemClicked(self, treeItem, columnIndex):
         self.sheethandler.itemClickedWorker(treeItem, columnIndex)
+        self.lastItemClicked = treeItem
 
         monitorFound = False
         for key in self.connections:
@@ -270,6 +273,24 @@ class WorkerHandler():
             self.workerDockWidget.startRepeatButton.setEnabled(False)
             self.workerDockWidget.startRepeatButton.setIcon(QIcon("resources/icons/control_play.png"))
             self.workerDockWidget.stopButton.setEnabled(False)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            event.accept()
+            if self.lastItemClicked is not None:
+                delkey = None
+                for key in self.connections:
+                    if self.connections[key][1].workerTreeItem == self.lastItemClicked:
+                        delkey = key
+                if delkey is not None:
+                    indx = self.workerDockWidget.workerTree.indexOfTopLevelItem(self.connections[delkey][1].workerTreeItem)
+                    self.workerDockWidget.workerTree.takeTopLevelItem(indx)
+                    self.connections[delkey][1].connection = None
+                    self.connections[delkey][0].callback = None
+                    del self.connections[delkey]
+                    return 1
+
+        return 0
 
     def startRepeatClicked(self, event):
         if self.currentMonitor is not None and self.currentWorker is not None:

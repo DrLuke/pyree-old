@@ -235,13 +235,17 @@ class ToString(BaseNode):
             self.done(True)
 
     def getString(self):
+        outstring = ""
+        try:
+            if self.getInput(0) is not None:
+                outstring += str(self.getInput(0))
+        except:
+            pass
+
         if "string" in self.extraNodeData:
-            return self.extraNodeData["string"]
-        else:
-            try:
-                return str(self.getInput(0))
-            except:
-                return ""
+            outstring += self.extraNodeData["string"]
+
+        return outstring
 
     inputDefs = [
         Pin("Anything", "", None)

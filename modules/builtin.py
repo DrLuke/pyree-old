@@ -5,7 +5,7 @@ import random, uuid
 from PyQt5.QtWidgets import QDialog, QPushButton, QComboBox, QWidget, QLabel, QGridLayout, QSizePolicy, QFormLayout, QPlainTextEdit, QDoubleSpinBox
 
 
-__nodes__ = ["Loop", "Init", "If", "SubSheet", "ToString", "ToFloat", "AppendList", "GetTime", "GetResolution", "SubSheetMixer"]
+__nodes__ = ["Loop", "Init", "If", "SubSheet", "ToString", "ToFloat", "AppendList", "GetTime", "GetResolution", "SubSheetMixer", "Beat", "Integrator", "PT1", "Add", "Subtract", "Multiply", "Divide", "MixerTimer"]
 
 class Loop(BaseNode):
     nodeName = "drluke.builtin.Loop"
@@ -72,7 +72,7 @@ class If(BaseNode):
         Pin("False", "exec", getExecdata)
     ]
 
-class SubSheet(BaseNode):
+"""class SubSheet(BaseNode):
     nodeName = "drluke.builtin.SubSheet"
     name = "Subsheet"
     desc = "Include a whole sheet in another sheet! Amazing!"
@@ -80,7 +80,6 @@ class SubSheet(BaseNode):
     placable = True
 
     class settingsDialog(QDialog):
-        """ Dialog for setting vertex points """
 
         def __init__(self, extraData, sheetview, sheethandler):
             super().__init__()
@@ -130,12 +129,14 @@ class SubSheet(BaseNode):
 
         self.time = self.runtime.time
 
+
+
         print("--- Subsheet node:")
         print(self.extraNodeData)
         if "sheetname" in self.extraNodeData:
             self.createSheet(self.runtime.subsheets[self.extraNodeData["sheetname"]])
 
-    def runInit(self):
+    def runInit(self, hack=True):
         self.running = self.runtime.running
         self.time = self.runtime.time
 
@@ -144,19 +145,23 @@ class SubSheet(BaseNode):
         except KeyError:
             print("subsheet initnode failed")
             pass
-        self.fireExec(0)
+        if hack:
+            self.fireExec(0)
 
-    def runLoop(self):
+    def runLoop(self, hack=True):
+
         self.running = self.runtime.running
         self.time = self.runtime.time
         self.videomode = self.runtime.videomode
+        print(self.time)
 
         try:
             self.sheetObjects[self.currentSheet["loopnode"]].run()
         except KeyError:
             print("subsheet loopnode failed")
             pass
-        self.fireExec(1)
+        if hack:
+            self.fireExec(1)
 
     def createSheet(self, sheet):
         newSheetObjects = {}
@@ -192,7 +197,7 @@ class SubSheet(BaseNode):
         Pin("Init done", "exec", None),
         Pin("Loop done", "exec", None),
         Pin("Outputs", "list", None, "List of values coming from the subsheet")
-    ]
+    ]"""
 
 
 class ToString(BaseNode):
@@ -314,10 +319,15 @@ class SubSheet(BaseNode):
         self.deltatime = self.runtime.deltatime
         self.time = self.runtime.time
 
+        self.beatlow = self.runtime.beatlow
+        self.beatmid = self.runtime.beatmid
+        self.beathigh = self.runtime.beathigh
+        self.bpm = self.runtime.bpm
+
         if "sheetname" in self.extraNodeData:
             self.createSheet(self.runtime.subsheets[self.extraNodeData["sheetname"]])
 
-    def runInit(self):
+    def runInit(self, hack=True):
         self.running = self.runtime.running
 
         self.deltatime = self.runtime.deltatime
@@ -328,19 +338,23 @@ class SubSheet(BaseNode):
         except KeyError:
             print("subsheet initnode failed")
             pass
-        self.fireExec(0)
+        if hack:
+            self.fireExec(0)
 
-    def runLoop(self):
+    def runLoop(self, hack=True):
         self.running = self.runtime.running
         self.time = self.runtime.time
         self.videomode = self.runtime.videomode
+
+        self.beatlow = self.runtime.beatlow
 
         try:
             self.sheetObjects[self.currentSheet["loopnode"]].run()
         except KeyError:
             print("subsheet loopnode failed")
             pass
-        self.fireExec(1)
+        if hack:
+            self.fireExec(1)
 
     def createSheet(self, sheet):
         newSheetObjects = {}
@@ -405,6 +419,8 @@ class ToFloat(BaseNode):
             self.spinBox = QDoubleSpinBox()
             if "float" in self.data:
                 self.spinBox.setValue(self.data["float"])
+                self.spinBox.setMaximum(99999999)
+                self.spinBox.setMinimum(-99999999)
             self.spinBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             self.containerWidgetLayout.addRow(self.spinBox)
 
@@ -431,7 +447,7 @@ class ToFloat(BaseNode):
     ]
 
     outputDefs = [
-        Pin("Float", "string", getFloat)
+        Pin("Float", "float", getFloat)
     ]
 
 class AppendList(BaseNode):
@@ -555,7 +571,7 @@ class SubSheetMixer(BaseNode):
                 if sheet in self.runtime.subsheets:
                     self.subsheetsObjs[sheet] = SubSheet(self.runtime, self.runtime.subsheets[sheet], uuid.uuid4().hex, {"sheetname": sheet})
                     self.subsheetsObjs[sheet].init()
-                    #self.subsheetsObjs[sheet].createSheet(self.runtime.subsheets[sheet])
+                    self.subsheetsObjs[sheet].runInit(hack=False)
 
         self.currentSheet = random.choice(list(self.subsheetsObjs.keys()))
         self.currentSheetObj = self.subsheetsObjs[self.currentSheet]
@@ -565,7 +581,8 @@ class SubSheetMixer(BaseNode):
     def run(self):
         try:
             if self.currentSheetObj is not None:
-                self.currentSheetObj.sheetObjects[self.runtime.subsheets[self.currentSheet]["loopnode"]].run()
+                #self.currentSheetObj.runtime = self.runtime
+                self.currentSheetObj.runLoop(hack=False)
         except KeyError:
             print("subsheet loopnode failed")
             pass
@@ -601,4 +618,257 @@ class GetResolution(BaseNode):
 
     outputDefs = [
         Pin("Resolution (vec2)", "list", getTime)
+    ]
+
+class Beat(BaseNode):
+    nodeName = "drluke.builtin.Beat"
+    name = "Beat"
+    desc = "Get Beat and bpm"
+    category = "Builtin"
+    placable = True
+
+
+    def getLow(self):
+        if self.runtime.beatlow:
+            return 1.0
+        else:
+            return 0.0
+
+    def getMid(self):
+        if self.runtime.beatmid:
+            return 1.0
+        else:
+            return 0
+
+    def getHigh(self):
+        if self.runtime.beathigh:
+            return 1.0
+        else:
+            return 0.0
+
+    def getBPM(self):
+        return self.runtime.bpm
+
+    inputDefs = [
+    ]
+
+    outputDefs = [
+        Pin("low", "float", getLow),
+        Pin("mid", "float", getMid),
+        Pin("high", "float", getHigh),
+        Pin("bpm", "float", getBPM)
+    ]
+
+class Integrator(BaseNode):
+    nodeName = "drluke.builtin.Integrator"
+    name = "Integrator"
+    desc = "Integrates value"
+    category = "Builtin"
+    placable = True
+
+    def init(self):
+        self.val = 0
+
+    def run(self):
+        if isinstance(self.getInput(1), float):
+            self.val += self.getInput(1)
+        else:
+            try:
+                self.val += float(self.getInput(1))
+            except:
+                pass
+
+        self.fireExec(0)
+
+    def getVal(self):
+        return self.val
+
+    inputDefs = [
+        Pin("Integrate", "exec", run),
+        Pin("Value", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("exec", "exec", None),
+        Pin("Val", "float", getVal)
+    ]
+
+class PT1(BaseNode):
+    nodeName = "drluke.builtin.PT1"
+    name = "PT1"
+    desc = "Delays value cahnge"
+    category = "Builtin"
+    placable = True
+
+    def init(self):
+        self.val = 0
+
+    def run(self):
+        if (isinstance(self.getInput(1), float) or isinstance(self.getInput(1), int)) and (isinstance(self.getInput(2), float) or isinstance(self.getInput(2), int)):
+            self.val += (self.getInput(1)/self.getInput(2) - self.val/self.getInput(2)) * self.runtime.deltatime
+
+        self.fireExec(0)
+
+    def getVal(self):
+        return self.val
+
+    inputDefs = [
+        Pin("exec", "exec", run),
+        Pin("Set Value", "float", None),
+        Pin("Time Constant", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("exec", "exec", None),
+        Pin("Val", "float", getVal)
+    ]
+
+class Add(BaseNode):
+    nodeName = "drluke.builtin.Add"
+    name = "Add"
+    desc = ""
+    category = "Builtin"
+    placable = True
+
+    def getVal(self):
+        a = self.getInput(0)
+        b = self.getInput(1)
+
+        if a is None:
+            a = 0.0
+        if b is None:
+            b = 0.0
+        try:
+            retval = float(a + b)
+        except:
+            retval = 0
+        return retval
+
+    inputDefs = [
+        Pin("Val 1", "float", None),
+        Pin("Val 2", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("Result", "float", getVal)
+    ]
+
+class Subtract(BaseNode):
+    nodeName = "drluke.builtin.Subtract"
+    name = "Subtract"
+    desc = ""
+    category = "Builtin"
+    placable = True
+
+    def getVal(self):
+        a = self.getInput(0)
+        b = self.getInput(1)
+
+        if a is None:
+            a = 0.0
+        if b is None:
+            b = 0.0
+        try:
+            retval = float(a - b)
+        except:
+            retval = 0
+        return retval
+
+    inputDefs = [
+        Pin("Val 1", "float", None),
+        Pin("Val 2", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("Result", "float", getVal)
+    ]
+
+class Multiply(BaseNode):
+    nodeName = "drluke.builtin.Multiply"
+    name = "Multiply"
+    desc = ""
+    category = "Builtin"
+    placable = True
+
+    def getVal(self):
+        a = self.getInput(0)
+        b = self.getInput(1)
+
+        if a is None:
+            a = 0.0
+        if b is None:
+            b = 0.0
+        try:
+            retval = float(a * b)
+        except:
+            retval = 0
+        return retval
+
+    inputDefs = [
+        Pin("Val 1", "float", None),
+        Pin("Val 2", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("Result", "float", getVal)
+    ]
+
+class Divide(BaseNode):
+    nodeName = "drluke.builtin.Divide"
+    name = "Divide"
+    desc = ""
+    category = "Builtin"
+    placable = True
+
+    def getVal(self):
+        a = self.getInput(0)
+        b = self.getInput(1)
+
+        if a is None:
+            a = 0.0
+        if b is None:
+            b = 0.0
+        try:
+            retval = float(a / b)
+        except:
+            retval = 0
+        return retval
+
+    inputDefs = [
+        Pin("Val 1", "float", None),
+        Pin("Val 2", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("Result", "float", getVal)
+    ]
+
+class MixerTimer(BaseNode):
+    nodeName = "drluke.builtin.MixerTimer"
+    name = "MixerTimer"
+    desc = ""
+    category = "Builtin"
+    placable = True
+
+    def init(self):
+        self.timertime = 1.0
+
+    def getVal(self):
+        self.timertime -= self.runtime.deltatime
+
+        if self.timertime <= 0:
+            if isinstance(self.getInput(0), float):
+                self.timertime = random.uniform(self.getInput(0)*0.5, self.getInput(0) * 1.5)
+            else:
+                self.timertime = random.uniform(60,120)
+            return 1.0
+        else:
+            return 0.0
+
+    inputDefs = [
+        Pin("Interval", "float", None)
+    ]
+
+    outputDefs = [
+        Pin("Trigger", "float", getVal)
     ]

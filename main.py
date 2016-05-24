@@ -24,7 +24,7 @@ class ShaderWindow(QMainWindow):
 
         self.projectFilePath = None
         self.programName = "Pyree"
-        self.projectName = "New Project"
+        self.projectName = "GPN 2016"
         self.setSheetName("No Sheet~")
 
         # File Menu ~ New Project

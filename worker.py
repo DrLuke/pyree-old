@@ -23,6 +23,10 @@ class worker():
         self.tcpsocket.bind(("127.0.0.1", self.port))
         self.tcpsocket.listen(10)
 
+        self.udpsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.udpsock.bind(("127.0.0.1", 9050))
+
         self.messageBuf = ""
         self.outBuf = ""
 
@@ -44,20 +48,42 @@ class worker():
 
     def run(self):
         # See if there are any incoming connections
-        rlist, wlist, elist = select([self.tcpsocket], [], [], 0)
+        rlist, wlist, elist = select([self.tcpsocket, self.udpsock], [], [], 0)
         if rlist:
-            conn, addr = self.tcpsocket.accept()
-            if self.controllerConn is not None:
-                rlist, wlist, elist = select([], [conn], [], 0)
-                if wlist:
-                    conn.send(b'{"status": ["error", 1], "message": "Already got controller."}\n')
-                print("Rejecting connection from " + str(self.controllerAddr) + ".")
-                conn.close()
-            else:
-                print("Accepting connection from " + str(self.controllerAddr) + ".")
-                self.controllerConn = conn
-                self.controllerAddr = addr
-                conn.send(b'{"status": ["ok", 1], "message": "Connection accepted."}\n')
+            for sock in rlist:
+                if sock == self.tcpsocket:
+                    conn, addr = self.tcpsocket.accept()
+                    if self.controllerConn is not None:
+                        rlist, wlist, elist = select([], [conn], [], 0)
+                        if wlist:
+                            conn.send(b'{"status": ["error", 1], "message": "Already got controller."}\n')
+                        print("Rejecting connection from " + str(self.controllerAddr) + ".")
+                        conn.close()
+                    else:
+                        print("Accepting connection from " + str(self.controllerAddr) + ".")
+                        self.controllerConn = conn
+                        self.controllerAddr = addr
+                        conn.send(b'{"status": ["ok", 1], "message": "Connection accepted."}\n')
+                elif sock == self.udpsock:
+                    data, addr = sock.recvfrom(4096)
+
+                    try:
+                        msg = bytes.decode(data)
+                        msgdecoded = json.loads(msg)
+
+                        if "bpm" in msgdecoded:
+                            for worker in self.glfwWorkers:
+                                self.glfwWorkers[worker].beatlow = True
+                                self.glfwWorkers[worker].beatmid = False
+                                self.glfwWorkers[worker].beathigh = False
+                                self.glfwWorkers[worker].bpm = msgdecoded["bpm"]
+
+                        if "cmd" in msgdecoded and "data" in msgdecoded:
+                            pass
+
+
+                    except:
+                        raise
 
         # See if anything is to be sent to controller
         if self.outBuf:
@@ -226,6 +252,12 @@ class glfwWorker():
         self.deltatime = 0
         self.time = glfw.get_time()
 
+
+        self.beatlow = False
+        self.beatmid = False
+        self.beathigh = False
+        self.bpm = 0
+
     def framebufferSizeCallback(self, window, width, height):
         glViewport(0, 0, width, height)
 
@@ -251,6 +283,9 @@ class glfwWorker():
 
             glfw.swap_buffers(self.window)
 
+            self.beatlow = False
+            self.beatmid = False
+            self.beathigh = False
 
             return 0
 

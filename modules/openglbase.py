@@ -18,7 +18,12 @@ import numpy as np
 
 import traceback
 
-__nodes__ = ["Quad", "ShaderProgram", "RenderVAO", "UniformsContainer"]
+import os
+
+import PIL
+from PIL import Image, ImageFont, ImageDraw
+
+__nodes__ = ["Quad", "ShaderProgram", "RenderVAO", "UniformsContainer", "TextureContainer"]
 
 class Quad(BaseNode):
     nodeName = "drluke.openglbase.Quad"
@@ -189,8 +194,8 @@ class RenderVAO(BaseNode):
     def run(self):
 
         glEnable(GL_TEXTURE_2D)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        #glEnable(GL_BLEND)
+        #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         self.shaderprogram = self.getInput(1)
         self.vao = self.getInput(2)
@@ -213,11 +218,26 @@ class RenderVAO(BaseNode):
                     elif len(self.uniformsContainer[uniformName]) == 2:
                         glUniform4f(uniformLoc, self.uniformsContainer[uniformName][0], self.uniformsContainer[uniformName][1], self.uniformsContainer[uniformName][2], self.uniformsContainer[uniformName][3])
 
+        if self.textureContainer is not None:
+            for key in self.textureContainer:
+                if key == 0:
+                    glActiveTexture(GL_TEXTURE0)
+                    glBindTexture(GL_TEXTURE_2D, self.textureContainer[0])
+                elif key == 1:
+                    glActiveTexture(GL_TEXTURE1)
+                    glBindTexture(GL_TEXTURE_2D, self.textureContainer[1])
+                elif key == 2:
+                    glActiveTexture(GL_TEXTURE2)
+                    glBindTexture(GL_TEXTURE_2D, self.textureContainer[2])
+                elif key == 3:
+                    glActiveTexture(GL_TEXTURE3)
+                    glBindTexture(GL_TEXTURE_2D, self.textureContainer[3])
+
         glBindVertexArray(self.vao)
         glDrawArrays(GL_TRIANGLES, 0, self.getInput(3)*3)
         glBindVertexArray(0)
 
-        glDisable(GL_BLEND)
+        #glDisable(GL_BLEND)
         glDisable(GL_TEXTURE_2D)
 
     inputDefs = [
@@ -266,4 +286,49 @@ class UniformsContainer(BaseNode):
     outputDefs = [
         Pin("exec", "exec", None),
         Pin("Container", "uniformscontainer", getContainer),
+    ]
+
+class TextureContainer(BaseNode):
+    nodeName = "drluke.openglbase.TextureContainer"
+    name = "Texture Container"
+    desc = "Add Uniforms to a container, and then pass them into a render node!"
+    category = "Shaders"
+    placable = True
+
+    def init(self):
+        self.textureContainer = None
+
+    def run(self):
+        self.textureContainer = {}
+
+        if self.getInput(1) is not None and os.path.exists(self.getInput(1)):
+            img = Image.open(self.getInput(1))
+            img = img.convert('RGBA').transpose(PIL.Image.FLIP_TOP_BOTTOM)
+            img_data = np.array(list(img.getdata()), 'B')
+            self.textureContainer[0] = glGenTextures(1)
+            glPixelStorei(GL_UNPACK_ALIGNMENT,1)
+            glBindTexture(GL_TEXTURE_2D, self.textureContainer[0])
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.size[0], img.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+            glGenerateMipmap(GL_TEXTURE_2D)
+
+        #glBindTexture(0)
+
+    def getContainer(self):
+        return self.textureContainer
+
+    inputDefs = [
+        Pin("Create", "exec", run, "Add Uniform to Container"),
+        Pin("Path 0", "string", None),
+        Pin("Path 1", "string", None),
+        Pin("Path 2", "string", None),
+        Pin("Path 3", "string", None)
+    ]
+
+    outputDefs = [
+        Pin("exec", "exec", None),
+        Pin("Textures", "texturecontainer", getContainer),
     ]

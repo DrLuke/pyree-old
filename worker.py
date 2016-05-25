@@ -237,11 +237,11 @@ class glfwWorker():
         self.miscdata = {}  # Special cases are ~fun~! (The f stands for "FUUUCK why did I do this?!")
 
         self.videomode = glfw.get_video_mode(monitor)
-        #self.window = glfw.create_window(100, 100, "Hello World", monitor, None)
-        self.window = glfw.create_window(100, 100, "Hello World", None, None)
+        self.window = glfw.create_window(100, 100, "Hello World", monitor, None)
+        #self.window = glfw.create_window(100, 100, "Hello World", None, None)
         if not self.window:
             raise Exception("Creating window failed")
-        #glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
+        glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)

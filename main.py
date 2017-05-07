@@ -3,6 +3,7 @@ from PyQt5.QtCore import Qt, QMimeData, QMimeType
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
 
 from effigy.QNodeScene import QNodeScene
+from effigy.QNodeView import QNodeView
 from effigy.QNodeSceneNode import QNodeSceneNode
 
 import sys, os
@@ -14,6 +15,7 @@ class Sheet():
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
     def __init__(self, listItem:QListWidgetItem, data=None):
         self.scene = QNodeScene()
+        self.view = QNodeView()
         self.listItem = listItem
 
     def saveToFile(self, path):
@@ -68,7 +70,8 @@ class PyreeMainWindow(QMainWindow):
 
         # Also triggered by pressing enter on sheetLineEdit
         self.ui.addSheetPushButton.clicked.connect(self.addSheetPushButtonClicked)
-        self.ui.sheetListWidget.itemChanged.connect(self.SheetListWidgetItemChanged)
+        self.ui.sheetListWidget.itemChanged.connect(self.sheetListWidgetItemChanges)
+        self.ui.sheetListWidget.itemDoubleClicked.connect(self.sheetListWidgetItemDoubleClicked)
 
     def addSheetPushButtonClicked(self, checked):
         if self.ui.addSheetLineEdit.text():     # If the text field isn't empty
@@ -78,6 +81,14 @@ class PyreeMainWindow(QMainWindow):
 
     def sheetListWidgetItemChanges(self, item):
         pass    # TODO: Decide if this is needed
+
+    def sheetListWidgetItemDoubleClicked(self, item):
+        tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)
+        if tabIndx == -1:   # Widget not found
+            tabIndx = self.ui.tabWidget.addTab(self.currentProject.sheets[item.data(Qt.UserRole)].view, item.text())
+
+        self.ui.tabWidget.setCurrentIndex(tabIndx)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

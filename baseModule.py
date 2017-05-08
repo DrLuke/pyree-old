@@ -1,87 +1,67 @@
-import types, uuid
+from effigy.QNodeSceneNode import QNodeSceneNode
+from effigy.NodeIO import NodeIO, NodeOutput, NodeInput
 
-__nodes__ = ["BaseNode"]
+from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
+from PyQt5.QtCore import QRectF, QPointF, Qt
+from PyQt5.QtGui import QPen, QColor, QBrush, QFont
 
-class Pin:
-    def __init__(self, name, pintype, function, tooltip=""):
-        self.name = name
-        self.pintype = pintype
+class exec:
+    """typedef for exec-pins"""
+    pass
 
-        if isinstance(type(function), types.FunctionType):
-            raise ValueError("'function' argument must be of function type (Is '" + str(type(function)) + "')")
-        self.function = function
+class SimpleBlackbox(QNodeSceneNode):
+    """Blackbox node template with inputs on the left and outputs on the right"""
+    # Here we define some information about the node
+    author = "DrLuke"  # Author of this node (only used for namespacing, never visible to users)
+    modulename = "builtin"  # Internal name of the module, make this something distinguishable
+    name = "SimpleBlackbox"  # Human-readable name
 
-        self.tooltip = tooltip
+    placeable = False  # Whether or not this node should be placeable from within the editor
+    Category = ["Builtin"]  # Nested categories this Node should be sorted in
 
-    def __getitem__(self, index):
-        if index == 0:
-            return self.name
-        elif index == 1:
-            return self.pintype
-        elif index == 2:
-            return self.function
-        elif index == 3:
-            return self.tooltip
+    # Description, similar to python docstrings (Brief summary on first line followed by a long description)
+    description = """This node is the base class for all nodes.
+    It should never be placeable in the editor. However if you DO see this in the editor, something went wrong!"""
+
+    def defineIO(self):
+        raise NotImplementedError("This method must be implemented in derived class")
+
+    def addInput(self, type, name):
+        self.inputs.append([type, name])
+
+    def addOutput(self, type, name):
+        self.outputs.append([type, name])
+
+    def addIO(self):
+        self.inputs = []
+        self.outputs = []
+
+        self.defineIO()
+
+        newnode = NodeOutput(str, parent=self, name="output")
+        newnode.setPos(20, 10)
+        self.IO["output"] = newnode
+
+        newnode = NodeInput(str, parent=self, name="input")
+        newnode.setPos(-20, 10)
+        self.IO["input"] = newnode
+
+    def boundingRect(self):
+        return self.mainRect.rect()
+
+    def addGraphicsItems(self):
+        self.mainRect = QGraphicsRectItem(QRectF(-15, -15, 30, 30), self)
+        self.nodeTitle = QGraphicsTextItem(type(self).name, self)
+
+    def selectedChanged(self, state):
+        if state:
+            self.mainRect.setPen(QPen(Qt.red))
         else:
-            raise IndexError("Illegal index: " + str(index) + " (Only allowed inidices are 0 to 2)")
+            self.mainRect.setPen(QPen(Qt.black))
 
-class BaseNode:
-    nodeName = "drluke.BaseModule.BaseNode"
-    # Internal name of the Module. Must be unique to prevent problems. Optimally you would do something like
-    # authorname.modulename.nodename where modulename is the name of this python file and the nodename the
-    # name of the class.
-    name = "Basenode"  # Display name on the node in the editor. Should be human readable.
-    category = "Base"  # Category by which to sort on the new node creation display
-    desc = "This is the default node. It should not be accessible from within the editor!"  # Figure it out yourself
-    placable = False  # Node prototypes like the baseNode do not necessarily have to be placable, as they might just
-    # serve as a prototype to inherit from.
-    tags = ["basenode"]
+    def serialize(self):
+        return None
 
-    settingsDialog = None
-
-    def __init__(self, runtime, relations, objid, extraNodeData={}):
-        self.runtime = runtime
-        self.relations = relations
-        self.id = objid
-        self.extraNodeData = extraNodeData
-
-        #self.init()
-
-    def __del__(self):
-        self.delete()
-
-    def fireExec(self, index):
-        try:
-            targetObj = self.runtime.sheetObjects[self.relations["outputs"][index][0][0]]  # Obtain target object
-            targetFun = type(targetObj).inputDefs[self.relations["outputs"][index][0][1]].function  # Obtain function
-
-            targetFun(targetObj)  # Call function for object
-            return 0
-        except IndexError:
-            return 1    # TODO: Improve this to only find keyerrors on self.relations["outputs"][index][0]
-
-    def getInput(self, index):
-        try:
-            targetObj = self.runtime.sheetObjects[self.relations["inputs"][index][0][0]]  # Obtain target object
-            targetFun = type(targetObj).outputDefs[self.relations["inputs"][index][0][1]].function  # Obtain function
-
-            return targetFun(targetObj)
-        except IndexError:
-            return None     # TODO: Improve this to only find keyerrors on self.relations["outputs"][index][0]
-
-
-    def init(self):
+    def deserialize(self, data):
         pass
 
-    def run(self):
-        pass
-
-    def delete(self):
-        pass
-
-    # Input and Output tuples: (displayname of IO, type of IO). Must be strings or you will have a bad time
-    inputDefs = [
-    ]
-
-    outputDefs = [
-    ]

@@ -1,8 +1,11 @@
 from glob import glob
 import importlib
 
+from PyQt5.QtWidgets import QDialog
+from gui.ModulePickerDialog import Ui_Dialog
+from effigy.QNodeScene import NodeSceneModuleManager
 
-class ModuleManager:
+class ClassFinder:
     def __init__(self):
         self.availableNodes = {}
 
@@ -19,3 +22,18 @@ class ModuleManager:
 
                 # Then import all modules from project folder
                 # TODO: Implement
+
+class ModulePickerDialog(QDialog, NodeSceneModuleManager):
+    def __init__(self, project, *args, **kwargs):
+        QDialog.__init__(self, *args, **kwargs)
+        NodeSceneModuleManager.__init__(self)
+
+        self.project = project
+
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)
+
+    def selectNode(self, position, inType:type=None, outType:type=None):
+        print("hi")
+        self.exec()
+

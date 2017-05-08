@@ -6,6 +6,8 @@ from effigy.QNodeScene import QNodeScene
 from effigy.QNodeView import QNodeView
 from effigy.QNodeSceneNode import QNodeSceneNode
 
+from moduleManager import ModulePickerDialog
+
 import sys, os
 import uuid
 
@@ -13,10 +15,14 @@ class Sheet():
     """Sheet manager
 
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
-    def __init__(self, listItem:QListWidgetItem, data=None):
-        self.scene = QNodeScene()
+    def __init__(self, listItem:QListWidgetItem, project, data=None):
+        self.scene = QNodeScene(ModulePickerDialog(project))
         self.view = QNodeView()
+        self.view.setScene(self.scene)
+        self.scene.setSceneRect(-5000, -5000, 10000, 10000)
         self.listItem = listItem
+
+
 
     def saveToFile(self, path):
         data = {}
@@ -37,6 +43,7 @@ class PyreeProject():
 
         self.sheets = {}    # List of all sheets in the project
 
+
         if filePath is not None:
             self.loadFromFile(filePath)
 
@@ -56,7 +63,7 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
-        self.sheets[listItem.data(Qt.UserRole)] = Sheet(listItem, data)
+        self.sheets[listItem.data(Qt.UserRole)] = Sheet(listItem, self, data)
 
 class PyreeMainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -80,7 +87,13 @@ class PyreeMainWindow(QMainWindow):
             self.currentProject.newSheet(newTreeItem)
 
     def sheetListWidgetItemChanges(self, item):
-        pass    # TODO: Decide if this is needed
+        # If the listItem changes, update tab name
+        try:
+            tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)
+            if not tabIndx == -1:
+                self.ui.tabWidget.setTabText(tabIndx, item.text())
+        except KeyError:
+            pass
 
     def sheetListWidgetItemDoubleClicked(self, item):
         tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)

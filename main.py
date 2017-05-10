@@ -19,10 +19,8 @@ class Sheet():
         self.scene = QNodeScene(ModulePickerDialog(project))
         self.view = QNodeView()
         self.view.setScene(self.scene)
-        self.scene.setSceneRect(-5000, -5000, 10000, 10000)
+        self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
-
-
 
     def saveToFile(self, path):
         data = {}

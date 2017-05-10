@@ -1,17 +1,13 @@
-from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem,\
-    QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPathItem, QDialog, QGridLayout, QLineEdit, QTreeWidget, QTreeWidgetItem
-
-from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath, QPen
-from PyQt5.QtCore import QPointF, Qt
-import PyQt5
-
 import uuid
 
-import baseModule
-from modules import testmodule
-from moduleManager import ModuleManager
-
+from PyQt5.QtCore import QPointF, Qt
+from PyQt5.QtGui import QPixmap, QBrush, QColor, QPainterPath, QPen
+from PyQt5.QtWidgets import QGraphicsView, QGraphicsRectItem, QGraphicsScene, QGraphicsTextItem, \
+    QGraphicsItem, QGraphicsPathItem, QDialog, QGridLayout, QLineEdit, QTreeWidget, QTreeWidgetItem
 from fuzzywuzzy import fuzz
+
+import baseModule
+from moduleManager import ModuleManager
 
 
 class NodeSelector(QDialog):

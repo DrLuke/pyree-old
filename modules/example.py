@@ -7,7 +7,7 @@ class TestBBNode(SimpleBlackbox):
     name = "Foo"
     modulename = "TestBBNode"
 
-    Category = ["builtin", "test", "nested"]
+    Category = ["builtin"]
 
 
     def defineIO(self):

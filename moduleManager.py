@@ -35,17 +35,14 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
         self.availableNodes = {}
 
     def searchModules(self):
-        self.availableNodes = {}
-        self.categoryTree = {}
-        self.ui.treeWidget.clear()
-
+        newAvailableNodes = {}
         # Import all builtin modules first
         modpaths = glob("modules/*.py")
         for modpath in modpaths:
             newmod = importlib.import_module("modules." + modpath[8:-3])
             for nodeName in newmod.__nodes__:
                 nodeClass = getattr(newmod, nodeName)
-                self.availableNodes[nodeClass.modulename] = nodeClass
+                newAvailableNodes[nodeClass.modulename] = nodeClass
 
                 # Then import all modules from home config folder
                 # TODO: Implement
@@ -53,17 +50,22 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
                 # Then import all modules from project folder
                 # TODO: Implement
 
-        print(self.availableNodes)
+        if not newAvailableNodes == self.availableNodes:
+            self.categoryTree = {}
+            self.ui.treeWidget.clear()
+            self.availableNodes = newAvailableNodes
+            return True     # New/Changed Modules were found, recreate tree items
+        return False    # No change found
 
     def selectNode(self, position, inType:type=None, outType:type=None):
-        self.searchModules()
-
-        for nodeName in self.availableNodes:
-            returnItem = self.checkOrCreateCategory(self.availableNodes[nodeName].Category, self.ui.treeWidget)
-            newItem = QTreeWidgetItem(1002)  # Type 1002 for modules
-            newItem.setText(0, self.availableNodes[nodeName].name)
-            returnItem.addChild(newItem)
-            newItem.setData(1, Qt.UserRole, nodeName)
+        if self.searchModules():
+            for nodeName in self.availableNodes:
+                print("-----")
+                returnItem = self.checkOrCreateCategory(self.availableNodes[nodeName].Category, self.ui.treeWidget)
+                newItem = QTreeWidgetItem(1002)  # Type 1002 for modules
+                newItem.setText(0, self.availableNodes[nodeName].name)
+                returnItem.addChild(newItem)
+                newItem.setData(1, Qt.UserRole, nodeName)
 
         self.exec()
 
@@ -82,7 +84,6 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
         currentItem = None
         currentCatTree = self.categoryTree
         for category in categories:
-            print(self.categoryTree)
             if category in currentCatTree:
                 currentItem = currentCatTree[category][0]
                 currentCatTree = currentCatTree[category][1]

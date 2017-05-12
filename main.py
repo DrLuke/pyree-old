@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem
-from PyQt5.QtCore import Qt, QMimeData, QMimeType
+from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
 
 from effigy.QNodeScene import QNodeScene
@@ -7,9 +7,11 @@ from effigy.QNodeView import QNodeView
 from effigy.QNodeSceneNode import QNodeSceneNode
 
 from moduleManager import ModulePickerDialog
+from workerManager import WorkerManager
 
 import sys, os
 import uuid
+from types import MethodType
 
 class Sheet():
     """Sheet manager
@@ -21,6 +23,12 @@ class Sheet():
         self.view.setScene(self.scene)
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
+        self.id = self.listItem.data(Qt.UserRole)   # Get ID from the listitem
+
+        self.name = self.listItem.text()
+
+        self.sceneUndoStackIndexChangedCallback = None
+        self.scene.undostack.indexChanged.connect(self.sceneUndoStackIndexChanged)
 
     def saveToFile(self, path):
         data = {}
@@ -30,16 +38,43 @@ class Sheet():
         for node in nodes:
             data["nodes"][node.id] = node.serializeinternal()
 
+    def serializeLinksOnly(self):
+        nodes = [x for x in self.scene.items() if issubclass(type(x), QNodeSceneNode)]  # TODO: Does this cause performance issues on large sheets?
+
+        data = {}
+        for node in nodes:
+            print(node.id)
+            data[node.id] = {}
+            data[node.id]["modulename"] = node.modulename
+            data[node.id]["io"] = {}
+            for io in node.IO.values():
+                data[node.id]["io"][io.id] = []
+                for link in io.nodeLinks:
+                    data[node.id]["io"][io.id].append([link.startIO.id, link.endIO.id, link.startIO.parentItem().id, link.endIO.parentItem().id])
+
+        return data
+
+
+    def sceneUndoStackIndexChanged(self, index):
+        if issubclass(type(self.sceneUndoStackIndexChangedCallback), MethodType):
+            self.sceneUndoStackIndexChangedCallback(self)
+
 class PyreeProject():
     """Pyree Project
 
     This class manages a project in Pyree. It encompasses management of all sheets as well as storing project settings.
     It also contains saving and loading features."""
-    def __init__(self, listWidget, filePath:str=None):
+    def __init__(self, ui, filePath:str=None):
         self.filePath = filePath
-        self.listWidget = listWidget
+        self.ui = ui
+        self.listWidget = self.ui.sheetListWidget
+
+        self.tickInterval = 20  # 100Hz
 
         self.sheets = {}    # List of all sheets in the project
+
+        self.workerManager = WorkerManager(self)
+
 
 
         if filePath is not None:
@@ -61,7 +96,10 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
-        self.sheets[listItem.data(Qt.UserRole)] = Sheet(listItem, self, data)
+        newSheet = Sheet(listItem, self, data)
+        self.sheets[listItem.data(Qt.UserRole)] = newSheet  # Add sheet to list of sheets
+        newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
+        self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state
 
 class PyreeMainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -71,7 +109,10 @@ class PyreeMainWindow(QMainWindow):
         self.ui = Ui_PyreeMainWindow()
         self.ui.setupUi(self)
 
-        self.currentProject = PyreeProject(self.ui.sheetListWidget)
+        self.currentProject = PyreeProject(self.ui)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.currentProject.workerManager.tick)
+        self.timer.start(self.currentProject.tickInterval)
 
         # Also triggered by pressing enter on sheetLineEdit
         self.ui.addSheetPushButton.clicked.connect(self.addSheetPushButtonClicked)

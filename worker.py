@@ -2,16 +2,25 @@
 import socket
 from select import select
 import json
+import time
+from ratelimit import rate_limited
+import netifaces
+
+## ss -l -4
 
 
 
 class WorkerHandler():
     def __init__(self):
-        self.port = 31337
+        self.tcpPort = 31337
         self.tcpsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcpsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.tcpsocket.bind(("127.0.0.1", self.port))
+        self.tcpsocket.bind(("0.0.0.0", self.tcpPort))
         self.tcpsocket.listen(10)
+
+        self.discoverysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.discoverysocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.discoverysocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
         self.glfwWorkers = {}
 
@@ -22,6 +31,9 @@ class WorkerHandler():
 
     def run(self):
         """Main loop"""
+        # Set off discovery broadcast
+        if self.controllerConn is None:
+            self.discoveryBroadcast()
         # Check for incoming connections
         rlist, wlist, elist = select([self.tcpsocket], [], [], 0)
         for sock in rlist:
@@ -33,15 +45,19 @@ class WorkerHandler():
                 else:   # Tell the other side we already have a controller, then close the connection
                     rlist, wlist, elist = select([], [conn], [], 0)
                     if conn in wlist:
-                        conn.wlist(b"REJECTED: Already got controller")  # TODO: Invent proper json error message
+                        conn.send(b"REJECTED: Already got controller")  # TODO: Invent proper json error message
                     conn.close()
 
-        if self.outbuf:
-            wlist = [self.controllerConn]
-        else:
-            wlist = []
 
-        rlist, wlist, elist = select([self.controllerConn], wlist, [], 0)
+        wlist = []
+        if self.controllerConn and self.outbuf:
+            wlist = [self.controllerConn]
+
+        rlist = []
+        if self.controllerConn:
+            rlist = [self.controllerConn]
+
+        rlist, wlist, elist = select(rlist, wlist, [], 0)
         if self.controllerConn in rlist:
             incomingData = self.controllerConn.recv(1024)
             if not incomingData:    # AKA connection is dead
@@ -60,9 +76,19 @@ class WorkerHandler():
 
         self.parseInbuf()
 
+    @rate_limited(1)
+    def discoveryBroadcast(self):
+        """Function handling transmission of discovery broadcast messages"""
+        interfaces = netifaces.interfaces()
+        for interface in interfaces:
+            addrlist = netifaces.ifaddresses(interface)[netifaces.AF_INET]
+            for addr in addrlist:
+                if "addr" in addr and "broadcast" in addr:
+                    self.discoverysocket.sendto(str.encode(json.dumps({"ip": addr["addr"], "port": self.tcpPort, "host": socket.gethostname()})), (addr["broadcast"], 31338))
+
     def parseInbuf(self):
         if self.inbuf and "\n" in self.inbuf:
-            splitbuf = self.messageBuf.split("\n")  # Split input buffer on newlines
+            splitbuf = self.inbuf.split("\n")  # Split input buffer on newlines
             self.parseMessage(splitbuf[0])  # Parse everything until the first newline
             self.inbuf = str.join("\n", splitbuf[1:])   # Recombine all other remaining messages with newlines
             self.parseInbuf()   # Work recursively until no messages are left
@@ -72,7 +98,7 @@ class WorkerHandler():
         try:
             decoded = json.loads(msg)
         except json.JSONDecodeError:
-            pass    # TODO: Should something be done here?
+            return    # TODO: Should something be done here?
 
         type = decoded["msgtype"]
 
@@ -83,6 +109,10 @@ class WorkerHandler():
         for worker in self.glfwWorkers.values():
             worker.decodeSheetdelta(msg)
 
+    def __del__(self):
+        self.discoverysocket.close()
+        self.tcpsocket.close()
+
 
 class glfwWorker():
     """GLFW instance for each display"""
@@ -92,7 +122,6 @@ class glfwWorker():
         self.sheetObjects = {}
 
     def decodeSheetdelta(self, msg):
-        print(msg)
         sheetid = msg["sheet"]
         if not sheetid in self.sheetdata:
             self.sheetdata[sheetid] = {}

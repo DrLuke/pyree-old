@@ -1,6 +1,7 @@
 import socket
 import uuid
 import json
+from select import select
 
 class WorkerManager():
     """Manages workers and keeps data synchronized.
@@ -11,11 +12,29 @@ class WorkerManager():
         self.project = project
 
         self.sheetDeltaMemory = {}
-        self.workers = []
+        self.workers = {}
+
+        self.discoverysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.discoverysocket.bind(("", 31338))
 
     def discoverWorkers(self):
         """Discover new workers via udp broadcasts"""
-        pass
+        rlist, wlist, elist = select([self.discoverysocket], [], [], 0)
+        if rlist:
+            received = self.discoverysocket.recvfrom(4096)[0]
+
+            try:
+                discoverydata = json.loads(bytes.decode(received))
+            except json.JSONDecodeError:
+                pass
+
+            if "ip" in discoverydata and "port" in discoverydata:
+                if "host" in discoverydata:
+                    name = discoverydata["host"]
+                else:
+                    name = discoverydata["ip"] + ":" + str(discoverydata["port"])
+                if name not in self.workers:
+                    self.workers[name] = Worker(discoverydata)
 
     def sheetChangeHook(self, sheet):
         """A hook called when a sheet changes.
@@ -50,16 +69,17 @@ class WorkerManager():
 
         transmitdata["sheet"] = sheet.id
 
-        # TODO:
-        """
-        for worker in self.workers:
-            worker.send(transmitdata) # or something like that
-        """
+        for worker in self.workers.values():
+            worker.transmitSheetDelta(transmitdata)
+
 
         self.sheetDeltaMemory[sheet.id] = serializedSheet
 
     def tick(self):
-        pass
+        self.discoverWorkers()
+
+        for worker in self.workers.values():
+            worker.tick()
 
     def detectSheetChanges(self):
         pass
@@ -68,20 +88,44 @@ class Worker():
     """Represents a single worker.
 
     The Worker class contains all open sockets and represents the worker inside the controller"""
-    def __init__(self, tcpsock, udpsock):
-        self.tcpsock = tcpsock
-        self.udpsock = udpsock
+    def __init__(self, connectiondata):
+        self.connectiondata = connectiondata
+        self.tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        self.ip = connectiondata["ip"]
+        self.port = connectiondata["port"]
+
+        try:
+            self.tcpsock.connect((self.ip, self.port))
+        except ConnectionRefusedError:
+            self.valid = False
+        self.valid = True
+
+        self.udpsock = None
 
         self.outBuf = ""
         self.inBuf = ""
 
         self.messageJar = {}    # Store messages if a response is expected
 
+    def tick(self):
+        if self.tcpsock is not None:
+            wlist = []
+            if self.outBuf:
+                wlist.append(self.tcpsock)
+                print(self.outBuf)
+            rlist,wlist,elist = select([self.tcpsock], wlist, [], 0)
+            if rlist:
+                print(self.tcpsock.recv(4096))
+            if wlist:
+                sent = self.tcpsock.send(str.encode(self.outBuf))
+                self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
+
     def sendMessage(self, msg):
         self.outBuf += json.dumps(msg) + "\n"
 
     def receiveMessage(self):
-        pass
+        print(self.tcpsock.recv(4096))
 
     def transmitSheetDelta(self, data):
         msg = {}
@@ -92,4 +136,6 @@ class Worker():
         msg["added"] = data["added"]
         msg["changed"] = data["changed"]
         msg["deleted"] = data["deleted"]
+
+        self.sendMessage(msg)
 

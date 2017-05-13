@@ -1,3 +1,7 @@
+import socket
+import uuid
+import json
+
 class WorkerManager():
     """Manages workers and keeps data synchronized.
 
@@ -41,6 +45,10 @@ class WorkerManager():
             transmitdata["deleted"] = deletedNodes
         else:
             transmitdata["added"] = serializedSheet
+            transmitdata["changed"] = {}
+            transmitdata["deleted"] = {}
+
+        transmitdata["sheet"] = sheet.id
 
         # TODO:
         """
@@ -64,4 +72,24 @@ class Worker():
         self.tcpsock = tcpsock
         self.udpsock = udpsock
 
+        self.outBuf = ""
+        self.inBuf = ""
+
+        self.messageJar = {}    # Store messages if a response is expected
+
+    def sendMessage(self, msg):
+        self.outBuf += json.dumps(msg) + "\n"
+
+    def receiveMessage(self):
+        pass
+
+    def transmitSheetDelta(self, data):
+        msg = {}
+        msg["msgid"] = uuid.uuid4().int
+        msg["msgtype"] = "sheetdelta"
+
+        msg["sheet"] = data["sheet"]
+        msg["added"] = data["added"]
+        msg["changed"] = data["changed"]
+        msg["deleted"] = data["deleted"]
 

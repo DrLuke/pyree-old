@@ -1,351 +1,64 @@
-import time
-import glfw
-import socket
-import json
-from select import select
-import traceback
-import uuid
 
-from moduleManager import ModuleManager
-from timeout import Timeout
 
-from OpenGL.GL import *
-from OpenGL.GLU import *
-from OpenGL.arrays import *
-from OpenGL.GL import shaders
-import OpenGL
 
-class worker():
+
+
+
+class WorkerHandler():
     def __init__(self):
-        self.port = 31337
-        self.tcpsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcpsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.tcpsocket.bind(("127.0.0.1", self.port))
-        self.tcpsocket.listen(10)
-
-        self.udpsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.udpsock.bind(("127.0.0.1", 9050))
-
-        self.messageBuf = ""
-        self.outBuf = ""
-
-        self.controllerConn = None
-        self.controllerAddr = None
-
-        self.glfwWorkers = {}  # Associate monitor-names with glfw workers
-
-        self.monitors = []
-        self.monitornames = []  # TODO: Reduce to monitorDict
-        self.monitorDict = {}
-        self.glfwMonitorCallback()  # Retrieve current monitors
-
-
-    def __del__(self):
-        if self.controllerConn is not None:
-            self.controllerConn.close()
-        self.tcpsocket.close()
+        self.glfwWorkers = {}
 
     def run(self):
-        # See if there are any incoming connections
-        rlist, wlist, elist = select([self.tcpsocket, self.udpsock], [], [], 0)
-        if rlist:
-            for sock in rlist:
-                if sock == self.tcpsocket:
-                    conn, addr = self.tcpsocket.accept()
-                    if self.controllerConn is not None:
-                        rlist, wlist, elist = select([], [conn], [], 0)
-                        if wlist:
-                            conn.send(b'{"status": ["error", 1], "message": "Already got controller."}\n')
-                        print("Rejecting connection from " + str(self.controllerAddr) + ".")
-                        conn.close()
-                    else:
-                        print("Accepting connection from " + str(self.controllerAddr) + ".")
-                        self.controllerConn = conn
-                        self.controllerAddr = addr
-                        conn.send(b'{"status": ["ok", 1], "message": "Connection accepted."}\n')
-                elif sock == self.udpsock:
-                    data, addr = sock.recvfrom(4096)
+        """Main loop"""
+        # TODO: Read socket connections
+        # TODO: Decode messages
 
-                    try:
-                        msg = bytes.decode(data)
-                        msgdecoded = json.loads(msg)
+    def decodeMessage(self, msg):
+        pass
 
-                        if "bpm" in msgdecoded:
-                            for worker in self.glfwWorkers:
-                                self.glfwWorkers[worker].beatlow = True
-                                self.glfwWorkers[worker].beatmid = False
-                                self.glfwWorkers[worker].beathigh = False
-                                self.glfwWorkers[worker].bpm = msgdecoded["bpm"]
-
-                        if "cmd" in msgdecoded and "data" in msgdecoded:
-                            pass
-
-
-                    except:
-                        raise
-
-        # See if anything is to be sent to controller
-        if self.outBuf:
-            wlist = [self.controllerConn]
-        else:
-            wlist = []
-
-        if self.controllerConn is not None:
-            rlist = [self.controllerConn]
-        else:
-            rlist = []
-
-        rlist, wlist, elist = select(rlist, wlist, [], 0)
-        if rlist:
-            incomingData = self.controllerConn.recv(1024)
-            if not incomingData:    # AKA connection is dead
-                print("Connection from " + str(self.controllerAddr) + " died.")
-                self.controllerConn.close()
-                self.controllerConn = None
-                self.controllerAddr = None
-            else:   # Append incoming message to the commandbuf to be parsed later
-                try:
-                    self.messageBuf += bytes.decode(incomingData)
-                except UnicodeDecodeError:
-                    self.sendError("""Error: Failed decoding message from controller as unicode:
------ MESSAGE: -----
-""" + str(incomingData) + """
--- MESSAGE END --""", None)
-
-        if wlist:
-            self.controllerConn.send(str.encode(self.outBuf))
-
-        self.parseMessageBuf()
-
-        for key in self.glfwWorkers:
-            try:
-                with Timeout(1):
-                    self.glfwWorkers[key].run()
-            except Timeout.Timeout:
-                print("Error: run() for worker '" + bytes.decode(glfw.get_monitor_name(self.glfwWorkers[key].monitor)) + "' timed out after 1 second.")   # TODO: send error message to controller
-
-
-    def parseMessageBuf(self):
-        if self.messageBuf:
-            splitbuf = self.messageBuf.split("\n")
-            messageToProcess = ""
-            if len(splitbuf) > 1:
-                messageToProcess = splitbuf[0]
-                self.messageBuf = str.join("\n", splitbuf[1:])
-
-            if messageToProcess:
-                self.processMessage(messageToProcess)
-
-    def processMessage(self, message):
-        # {"msgid":123,"status":"command","command":{"monitor":"DVI-I-1","":""}}
-        try:
-            message = json.loads(message)
-        except json.JSONDecodeError:
-            self.sendError("""Error: Failed to decode message as json.
------ MESSAGE: -----
-""" + message + """
--- MESSAGE END --""", None)
-            return
-
-        try:
-            if not isinstance(message["status"][0], str):
-                raise TypeError
-        except KeyError:
-            self.sendError("""Error: Message has no 'status' keyword.
------ MESSAGE: -----
-""" + str(message) + """
--- MESSAGE END --""", None)
-            return
-        except TypeError:
-            print("Error: 'status' value is not string")
-            print("----- MESSAGE: -----")
-            print(message)
-            print(" -- MESSAGE END --")
-            return
-
-        try:
-            if not isinstance(message["msgid"], str):
-                raise TypeError
-        except KeyError:
-            print("Error: Message has no 'msgid' keyword.")
-            print("----- MESSAGE: -----")
-            print(message)
-            print(" -- MESSAGE END --")
-            return
-
-        except TypeError:
-            print("Error: 'msgid' value is not int")
-            print("----- MESSAGE: -----")
-            print(message)
-            print(" -- MESSAGE END --")
-            return
-
-
-        if message["status"][0] == "command":
-            if "command" in message:
-                if "monitor" in message["command"]:
-                    if message["command"]["monitor"] in self.glfwWorkers:
-                        self.glfwWorkers[message["command"]["monitor"]].receiveCommand(message)
-                    else:
-                        print("Error: Monitor '" + message["command"]["monitor"] + "' doesn't have a worker yet or doesn't exist.")
-                        self.glfwWorkers[message["command"]["monitor"]] = glfwWorker(self, self.monitorDict[message["command"]["monitor"]])
-                elif "datarequest" in message["command"]:
-                    if message["command"]["datarequest"] == "monitors":
-                        self.sendToController(json.dumps({"msgid": uuid.uuid4().hex, "refid": message["msgid"], "status": ["reply", 0], "reply": {"datareply": self.monitornames}}))
-
-        elif message["status"][0] == "ok":
-            pass
-        elif message["status"][0] == "error":
-            pass
-
-    def sendError(self, message, refid):
-        print(message)    # TODO: Implement
-
-    def sendToController(self, message):
-        print("Sending to controller: " + str(message))
-        self.controllerConn.send(str.encode(str(message) + "\n"))
-
-    def glfwMonitorCallback(self):
-        # TODO: Test the FUCK out of this!
-        newMonitors = glfw.get_monitors()
-        newMonitornames = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in newMonitors]
-
-        for monitorName in self.glfwWorkers:
-            if monitorName not in newMonitornames:
-                print("Monitor " + monitorName + " doesn't exist anymore, worker is now doing whatever.")
-
-        self.monitors = newMonitors
-        self.monitornames = newMonitornames
-
-        for monitor in self.monitors:
-            self.monitorDict[bytes.decode(glfw.get_monitor_name(monitor))] = monitor
+    def passSheetDelta(self, msg):
+        for worker in self.glfwWorkers.values():
+            worker.decodeSheetdelta(msg)
 
 
 class glfwWorker():
-    def __init__(self, parent, monitor):
-        self.parent = parent
-        self.monitor = monitor
+    """GLFW instance for each display"""
+    def __init__(self):
+        self.sheetdata = {}
 
-        self.running = True
-        self.modman = ModuleManager()
-
-        self.currentSheet = None
         self.sheetObjects = {}
-        self.subsheets = {}
 
-        self.miscdata = {}  # Special cases are ~fun~! (The f stands for "FUUUCK why did I do this?!")
+    def decodeSheetdelta(self, msg):
+        sheetid = msg["sheet"]
+        if not sheetid in self.sheetdata:
+            self.sheetdata[sheetid] = {}
+        for nodeid in msg["added"]:
+            self.sheetdata[sheetid][nodeid] = msg["added"][nodeid]
+        for nodeid in msg["changed"]:
+            self.sheetdata[sheetid][nodeid] = msg["added"][nodeid]
+        for nodeid in msg["deleted"]:
+            del self.sheetdata[sheetid][nodeid]
 
-        self.videomode = glfw.get_video_mode(monitor)
-        self.window = glfw.create_window(100, 100, "Hello World", monitor, None)
-        #self.window = glfw.create_window(100, 100, "Hello World", None, None)
-        if not self.window:
-            raise Exception("Creating window failed")
-        glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
+        self.updateSheetObjects()
 
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
-        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-
-        glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
-
-        self.deltatime = 0
-        self.time = glfw.get_time()
-
-
-        self.beatlow = False
-        self.beatmid = False
-        self.beathigh = False
-        self.bpm = 0
-
-    def framebufferSizeCallback(self, window, width, height):
-        glViewport(0, 0, width, height)
-
-    def run(self):
-        glfw.make_context_current(self.window)
-        if glfw.window_should_close(self.window):
-            glfw.destroy_window(self.window)
-            return 1
-        else:
-
-            glfw.poll_events()
-
-            glClearColor(0.2, 0.3, 0.3, 1.0)
-            glClear(GL_COLOR_BUFFER_BIT)
-
-            self.deltatime = glfw.get_time() - self.time
-            self.time = glfw.get_time()
-
-            if self.currentSheet is not None and self.running:
-                self.sheetObjects[self.currentSheet["loopnode"]].run()
-            else:
-                pass    # TODO: Display default thing with monitor and resolution
-
-            glfw.swap_buffers(self.window)
-
-            self.beatlow = False
-            self.beatmid = False
-            self.beathigh = False
-
-            return 0
-
-    def receiveCommand(self, message):
-        print("Received command:" + str(message))
-
-        if "subsheets" in message["command"]:
-            self.subsheets = message["command"]["subsheets"]
-            print(self.subsheets)
-        if "sheet" in message["command"]:
-            self.updateSheet(message["command"]["sheet"])
-        if "setrunning" in message["command"]:
-            if message["command"]["setrunning"] == "stop":
-                self.running = False
-            if message["command"]["setrunning"] == "start" and self.running is False:
-                self.running = True
-            if message["command"]["setrunning"] == "start" and self.running is True:
-                self.running = True
-                if self.currentSheet is not None:
-                    self.updateSheet(self.currentSheet)
+    def updateSheetObjects(self):
+        for sheetId in self.sheetdata:
+            if not sheetId in self.sheetObjects:
+                self.sheetObjects[sheetId] = {}
+            for nodeId in self.sheetdata[sheetId]:
+                if nodeId not in self.sheetObjects[sheetId]:
+                    pass    # TODO: Create object from node.modulename
+                else:
+                    pass    # TODO: Update all IO connections on existing objects
+            for nodeId in self.sheetObjects:
+                if not nodeId in self.sheetdata[sheetId]:
+                    del self.sheetObjects[nodeId]
 
 
-
-    def updateSheet(self, sheet):
-        newSheetObjects = {}
-        try:
-            for id in sheet:
-                if(id == "initnode" or id == "loopnode"):
-                    continue
-
-                newSheetObjects[id] = self.modman.availableNodes[sheet[id]["nodename"]](self, sheet[id], id, sheet[id]["extraData"])
-
-            # No exceptions? replace old sheet by new sheet
-            self.sheetObjects = newSheetObjects
-            self.currentSheet = sheet
-
-            # Call all init functions of nodes (again). This can't happen in __init__
-            # as some dependencies might not exist yet.
-            for node in self.sheetObjects.values():
-                node.init()
-
-            # Trigger initnode
-            self.sheetObjects[self.currentSheet["initnode"]].run()
-        except:
-            #print("Exception during sheet update:")
-            #print(traceback.print_exc())
-            raise
-            #pass    # TODO: Print exception to master
 
 if __name__ == "__main__":
-    if not glfw.init():
-        raise Exception("glfw failed to initialize")
+    wh = WorkerHandler()
 
-    mainWorker = worker()
+    while True:
+        wh.run()
 
-    gtime = glfw.get_time()
-    while 1:
-        dt = glfw.get_time() - gtime
-        mainWorker.run()
-        time.sleep(max(0.01-dt,0))
-        gtime = glfw.get_time()
-else:
-    raise Exception("Slave must be run as main")

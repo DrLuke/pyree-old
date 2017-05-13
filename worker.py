@@ -5,6 +5,9 @@ import json
 import time
 from ratelimit import rate_limited
 import netifaces
+import uuid
+
+import glfw
 
 ## ss -l -4
 
@@ -28,6 +31,8 @@ class WorkerHandler():
         self.controllerAddr = None
         self.outbuf = ""    # IO buffer for controller
         self.inbuf = ""
+
+        self.monitors = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in glfw.get_monitors()]
 
     def run(self):
         """Main loop"""
@@ -93,21 +98,39 @@ class WorkerHandler():
             self.inbuf = str.join("\n", splitbuf[1:])   # Recombine all other remaining messages with newlines
             self.parseInbuf()   # Work recursively until no messages are left
 
+    def sendMessage(self, msg):
+        self.outbuf += json.dumps(msg) + "\n"
 
     def parseMessage(self, msg):
         try:
             decoded = json.loads(msg)
         except json.JSONDecodeError:
-            return    # TODO: Should something be done here?
+            return
 
         type = decoded["msgtype"]
-
         if type == "sheetdelta":
             self.passSheetDelta(decoded)
+        if type == "request":
+            self.handleRequest(decoded)
 
     def passSheetDelta(self, msg):
         for worker in self.glfwWorkers.values():
             worker.decodeSheetdelta(msg)
+
+    def handleRequest(self, msg):
+        request = msg["request"]
+        if request == "monitors":
+            self.sendMonitorsReply(msg["msgid"])
+
+    def sendMonitorsReply(self, msgid):
+        msg = {
+            "msgid": uuid.uuid4().int,
+            "msgtype": "reply",
+            "refid": msgid,
+            "replydata": self.monitors
+        }
+
+        self.sendMessage(msg)
 
     def __del__(self):
         self.discoverysocket.close()
@@ -116,7 +139,9 @@ class WorkerHandler():
 
 class glfwWorker():
     """GLFW instance for each display"""
-    def __init__(self):
+    def __init__(self, monitor):
+        self.monitor = monitor
+
         self.sheetdata = {}
 
         self.sheetObjects = {}
@@ -150,8 +175,15 @@ class glfwWorker():
 
 
 if __name__ == "__main__":
+    if not glfw.init():
+        raise Exception("glfw failed to initialize")
+
     wh = WorkerHandler()
 
-    while True:
+    gtime = glfw.get_time()
+    while 1:    # Limit framerate to 100 frames TODO: Make adjustable
+        dt = glfw.get_time() - gtime
         wh.run()
+        time.sleep(max(0.01 - dt, 0))
+        gtime = glfw.get_time()
 

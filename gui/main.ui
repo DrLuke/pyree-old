@@ -93,8 +93,20 @@
      <property name="horizontalSpacing">
       <number>4</number>
      </property>
-     <item row="1" column="0">
-      <widget class="QListWidget" name="listWidget"/>
+     <item row="1" column="1">
+      <widget class="QTreeWidget" name="workersTreeWidget">
+       <property name="itemsExpandable">
+        <bool>true</bool>
+       </property>
+       <attribute name="headerVisible">
+        <bool>false</bool>
+       </attribute>
+       <column>
+        <property name="text">
+         <string notr="true">1</string>
+        </property>
+       </column>
+      </widget>
      </item>
     </layout>
    </widget>

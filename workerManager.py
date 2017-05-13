@@ -3,19 +3,24 @@ import uuid
 import json
 from select import select
 
+from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem
+
 class WorkerManager():
     """Manages workers and keeps data synchronized.
 
     The WorkerManager discovers and keeps track of workers. It synchronzies all sheet changes to workers when it's necessary.
     It also establishes a channel for node-to-implementation communications."""
-    def __init__(self, project):
+    def __init__(self, project, treeWidget):
         self.project = project
+        self.treeWidget = treeWidget
 
         self.sheetDeltaMemory = {}
         self.workers = {}
 
         self.discoverysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.discoverysocket.bind(("", 31338))
+
+        self.infograbberCounter = 0
 
     def discoverWorkers(self):
         """Discover new workers via udp broadcasts"""
@@ -34,7 +39,11 @@ class WorkerManager():
                 else:
                     name = discoverydata["ip"] + ":" + str(discoverydata["port"])
                 if name not in self.workers:
-                    self.workers[name] = Worker(discoverydata)
+                    treeItem = QTreeWidgetItem(1001)    # Type 1000 for Worker Item
+                    treeItem.setText(0, name)
+                    self.treeWidget.addTopLevelItem(treeItem)
+                    self.workers[name] = Worker(discoverydata, treeItem)
+                    self.grabPeriodicInfos()    # Grab monitor data
 
     def sheetChangeHook(self, sheet):
         """A hook called when a sheet changes.
@@ -81,14 +90,22 @@ class WorkerManager():
         for worker in self.workers.values():
             worker.tick()
 
-    def detectSheetChanges(self):
-        pass
+        self.infograbberCounter += 1
+        if self.infograbberCounter >= 100:  # TODO: Maybe make this a timer
+            self.grabPeriodicInfos()
+            self.infograbberCounter = 0
+
+    def grabPeriodicInfos(self):
+        for worker in self.workers.values():
+            worker.requestMonitors()
 
 class Worker():
     """Represents a single worker.
 
     The Worker class contains all open sockets and represents the worker inside the controller"""
-    def __init__(self, connectiondata):
+    def __init__(self, connectiondata, treeItem):
+        self.treeItem = treeItem
+        # --- Networking
         self.connectiondata = connectiondata
         self.tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -108,15 +125,28 @@ class Worker():
 
         self.messageJar = {}    # Store messages if a response is expected
 
+        # --- Worker
+        self.monitors = []
+        self.monitorState = {}
+
+
     def tick(self):
         if self.tcpsock is not None:
             wlist = []
             if self.outBuf:
                 wlist.append(self.tcpsock)
-                print(self.outBuf)
             rlist,wlist,elist = select([self.tcpsock], wlist, [], 0)
             if rlist:
-                print(self.tcpsock.recv(4096))
+                recvbuf = ""
+                try:
+                    recvbuf = self.tcpsock.recv(4096)
+                    if len(recvbuf) == 0:
+                        pass    # TODO: Handle socket death! Try to reestablish connection periodically
+                    self.inBuf += bytes.decode(recvbuf)
+                except UnicodeDecodeError:
+                    print("-------------\nReceived garbled unicode: %s\n-------------" % recvbuf)
+                self.parseInbuf()
+
             if wlist:
                 sent = self.tcpsock.send(str.encode(self.outBuf))
                 self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
@@ -124,8 +154,28 @@ class Worker():
     def sendMessage(self, msg):
         self.outBuf += json.dumps(msg) + "\n"
 
-    def receiveMessage(self):
-        print(self.tcpsock.recv(4096))
+    def parseInbuf(self):
+        if self.inBuf and "\n" in self.inBuf:
+            splitbuf = self.inBuf.split("\n")  # Split input buffer on newlines
+            self.parseMessage(splitbuf[0])  # Parse everything until the first newline
+            self.inBuf = str.join("\n", splitbuf[1:])   # Recombine all other remaining messages with newlines
+            self.parseInbuf()   # Work recursively until no messages are left
+
+    def parseMessage(self, msg):
+        try:
+            decoded = json.loads(msg)
+        except json.JSONDecodeError:
+            return
+
+        type = decoded["msgtype"]
+        if type == "reply":
+            self.handleReply(decoded)
+
+    def handleReply(self, msg):
+        requestid = msg["refid"]
+        if requestid in self.messageJar:
+            if self.messageJar[requestid]["request"] == "monitors":
+                self.replyMonitors(msg)
 
     def transmitSheetDelta(self, data):
         msg = {}
@@ -139,3 +189,33 @@ class Worker():
 
         self.sendMessage(msg)
 
+    def requestMonitors(self):
+        """Send request for monitors"""
+        msg = {
+            "msgid": uuid.uuid4().int,
+            "msgtype": "request",
+            "request": "monitors"
+        }
+
+        self.messageJar[msg["msgid"]] = msg
+
+        self.sendMessage(msg)
+
+    def replyMonitors(self, msg):
+        """Handle reply to monitors request"""
+        self.monitors = msg["replydata"]
+
+        for monitor in self.monitors:
+            if monitor not in self.monitorState:    # Monitor is newly available
+                self.monitorState[monitor] = {}
+                self.monitorState[monitor]["treeItem"] = QTreeWidgetItem(1002)  # Type 1002 for monitor item
+                self.monitorState[monitor]["treeItem"].setText(0, monitor)
+                self.treeItem.addChild(self.monitorState[monitor]["treeItem"])
+                self.treeItem.setExpanded(True)
+                self.monitorState[monitor]["available"] = True
+                self.monitorState[monitor]["sheet"] = None
+        for monitor in self.monitorState:
+            if monitor not in self.monitors:    # Monitor exists in state, but is not available anymore
+                self.monitorState[monitor]["available"] = False
+
+        # TODO: Set sheet item state here (blue for active, but no sheet, red for gone, black for all good)

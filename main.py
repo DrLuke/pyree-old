@@ -43,7 +43,6 @@ class Sheet():
 
         data = {}
         for node in nodes:
-            print(node.id)
             data[node.id] = {}
             data[node.id]["modulename"] = node.modulename
             data[node.id]["io"] = {}
@@ -73,7 +72,7 @@ class PyreeProject():
 
         self.sheets = {}    # List of all sheets in the project
 
-        self.workerManager = WorkerManager(self)
+        self.workerManager = WorkerManager(self, self.ui.workersTreeWidget)
 
 
 
@@ -122,7 +121,7 @@ class PyreeMainWindow(QMainWindow):
     def addSheetPushButtonClicked(self, checked):
         if self.ui.addSheetLineEdit.text():     # If the text field isn't empty
             newTreeItem = QListWidgetItem(self.ui.addSheetLineEdit.text(), self.ui.sheetListWidget)
-            newTreeItem.setData(Qt.UserRole, uuid.uuid4())  # Add some uniquely identifying data to make it hashable
+            newTreeItem.setData(Qt.UserRole, uuid.uuid4().int)  # Add some uniquely identifying data to make it hashable
             self.currentProject.newSheet(newTreeItem)
 
     def sheetListWidgetItemChanges(self, item):

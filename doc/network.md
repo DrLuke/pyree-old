@@ -1,7 +1,7 @@
 # Network
 This document outlines the network protocol used by Pyree.
 
-## TCP
+# TCP
 Main communication happens by exchanging json objects via TCP. Every object must contain the following keys:
 
 #### `msgid (int)`
@@ -16,7 +16,7 @@ The following types exist:
 * `sheetdelta`
 * `nodedata`
 * `request`
-
+* `reply`
 
 ## Message types
 Each message must only be of one type. For each type there is a different set of keys that must be present:
@@ -35,6 +35,27 @@ Object containing all nodes that have been newly added to a sheet.
 Object containing all nodes that have changed on a sheet.
 #### `removedNodes(object)`
 Object containing all nodes that have been removed from a sheet.
+
+### `request`
+This kind of message represents a request for data by the controller to the worker.
+
+#### `request (string)`
+Data that is being requested with this request.  
+Valid requests are:
+* `monitors` Request a list of all available monitors
+* `temperature` Get CPU and GPU temperatures if available
+
+#### `arguments (object)`
+Extra arguments to the request.
+
+### `reply`
+Once a request has been received by the worker, it should immediately prepare a response.
+
+#### `refid (int)`
+The msgid of the request to which this is a reply to.
+
+#### `replydata (object)`
+Request data or information. The contents depend on the request type.
 
 ## UDP Broadcast
 UDP Broadcast is used exclusively to discover new workers in the network. It has the following keys:

@@ -123,6 +123,7 @@ class WorkerHandler():
             self.sendMonitorsReply(msg["msgid"])
 
     def sendMonitorsReply(self, msgid):
+        self.monitors = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in glfw.get_monitors()]   # TODO: Fix this!
         msg = {
             "msgid": uuid.uuid4().int,
             "msgtype": "reply",

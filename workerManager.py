@@ -4,6 +4,7 @@ import json
 from select import select
 
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem
+from PyQt5.QtGui import QIcon
 
 class WorkerManager():
     """Manages workers and keeps data synchronized.
@@ -21,6 +22,7 @@ class WorkerManager():
         self.discoverysocket.bind(("", 31338))
 
         self.infograbberCounter = 0
+
 
     def discoverWorkers(self):
         """Discover new workers via udp broadcasts"""
@@ -129,6 +131,13 @@ class Worker():
         self.monitors = []
         self.monitorState = {}
 
+        self.workerOkIcon = QIcon("resources/icons/server.png")
+        self.workerLostConnection = QIcon("resources/icons/server_error.png")
+        self.monitorOkIcon = QIcon("resources/icons/monitor.png")
+        self.monitorGoneIcon = QIcon("resources/icons/monitor_error.png")
+
+        self.treeItem.setIcon(0, self.workerOkIcon)
+
 
     def tick(self):
         if self.tcpsock is not None:
@@ -141,7 +150,7 @@ class Worker():
                 try:
                     recvbuf = self.tcpsock.recv(4096)
                     if len(recvbuf) == 0:
-                        pass    # TODO: Handle socket death! Try to reestablish connection periodically
+                        self.handleLostConnection()
                     self.inBuf += bytes.decode(recvbuf)
                 except UnicodeDecodeError:
                     print("-------------\nReceived garbled unicode: %s\n-------------" % recvbuf)
@@ -150,6 +159,16 @@ class Worker():
             if wlist:
                 sent = self.tcpsock.send(str.encode(self.outBuf))
                 self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
+
+    def handleLostConnection(self):
+        self.valid = False
+        self.treeItem.setIcon(0, self.workerLostConnection)
+        self.tcpsock.close()
+        self.tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.tcpsock.connect((self.ip, self.port))
+        except ConnectionRefusedError:
+            pass
 
     def sendMessage(self, msg):
         self.outBuf += json.dumps(msg) + "\n"
@@ -210,6 +229,7 @@ class Worker():
                 self.monitorState[monitor] = {}
                 self.monitorState[monitor]["treeItem"] = QTreeWidgetItem(1002)  # Type 1002 for monitor item
                 self.monitorState[monitor]["treeItem"].setText(0, monitor)
+                self.monitorState[monitor]["treeItem"].setIcon(0, self.monitorOkIcon)
                 self.treeItem.addChild(self.monitorState[monitor]["treeItem"])
                 self.treeItem.setExpanded(True)
                 self.monitorState[monitor]["available"] = True
@@ -217,5 +237,6 @@ class Worker():
         for monitor in self.monitorState:
             if monitor not in self.monitors:    # Monitor exists in state, but is not available anymore
                 self.monitorState[monitor]["available"] = False
+                self.monitorState[monitor]["treeItem"].setIcon(0, self.monitorGoneIcon)
 
         # TODO: Set sheet item state here (blue for active, but no sheet, red for gone, black for all good)

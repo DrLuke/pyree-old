@@ -45,10 +45,13 @@ class Sheet():
         for node in nodes:
             data[node.id] = {}
             data[node.id]["modulename"] = node.modulename
+            data[node.id]["iomap"] = {}
             data[node.id]["io"] = {}
             for io in node.IO.values():
-                data[node.id]["io"][io.id] = []
+                data[node.id]["iomap"][node.name] = io.id   # Needed to associate functions with correct IDs
+                data[node.id]["io"][io.id] = []     # Needed to define all links unambiguously.
                 for link in io.nodeLinks:
+                    # Node IDs in fields 2 and 3 are added for quicker lookup of IOs
                     data[node.id]["io"][io.id].append([link.startIO.id, link.endIO.id, link.startIO.parentItem().id, link.endIO.parentItem().id])
 
         return data

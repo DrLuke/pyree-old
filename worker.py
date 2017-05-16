@@ -137,8 +137,7 @@ class WorkerHandler():
         self.discoverysocket.close()
         self.tcpsocket.close()
 
-
-class glfwWorker():
+class glfwWorker:
     """GLFW instance for each display"""
     def __init__(self, monitor):
         self.monitor = monitor
@@ -146,6 +145,12 @@ class glfwWorker():
         self.sheetdata = {}
 
         self.sheetObjects = {}
+
+        # --- Runtime variables
+        self.time = glfw.get_time()
+
+    def tick(self):
+        self.time = glfw.get_time()
 
     def decodeSheetdelta(self, msg):
         sheetid = msg["sheet"]

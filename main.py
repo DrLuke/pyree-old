@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem
-from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer
+from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer, QPointF
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
 
 from effigy.QNodeScene import QNodeScene
@@ -8,6 +8,8 @@ from effigy.QNodeSceneNode import QNodeSceneNode
 
 from moduleManager import ModulePickerDialog
 from workerManager import WorkerManager
+
+from baseModule import initNode, loopNode
 
 import sys, os
 import uuid
@@ -24,6 +26,12 @@ class Sheet():
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
         self.id = self.listItem.data(Qt.UserRole)   # Get ID from the listitem
+
+        self.initnode = initNode()
+        self.scene.addItem(self.initnode)
+        self.loopnode = loopNode()
+        self.scene.addItem(self.loopnode)
+        self.loopnode.setPos(QPointF(0, 100))
 
         self.name = self.listItem.text()
 
@@ -48,7 +56,7 @@ class Sheet():
             data[node.id]["iomap"] = {}
             data[node.id]["io"] = {}
             for io in node.IO.values():
-                data[node.id]["iomap"][node.name] = io.id   # Needed to associate functions with correct IDs
+                data[node.id]["iomap"][io.name] = io.id   # Needed to associate functions with correct IDs
                 data[node.id]["io"][io.id] = []     # Needed to define all links unambiguously.
                 for link in io.nodeLinks:
                     # Node IDs in fields 2 and 3 are added for quicker lookup of IOs

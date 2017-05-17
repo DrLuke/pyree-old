@@ -1,4 +1,4 @@
-from effigy.QNodeSceneNode import QNodeSceneNode
+from effigy.QNodeSceneNode import QNodeSceneNode, QNodeSceneNodeUndeletable
 from effigy.NodeIO import NodeIO, NodeOutput, NodeInput
 
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
@@ -22,13 +22,16 @@ class BaseImplementation():
         self.defineIO()
 
         for ioname in self.nodeData["iomap"]:
-            self.ioIdFuncs[self.nodeData["iomap"][ioname]] = self.ioNameFuncs[ioname]
+            if ioname in self.ioNameFuncs:
+                self.ioIdFuncs[self.nodeData["iomap"][ioname]] = self.ioNameFuncs[ioname]
+            else:
+                self.ioIdFuncs[self.nodeData["iomap"][ioname]] = None
 
         self.init()
 
     def init(self):
         """Gets called on creation by the runtime"""
-        raise NotImplementedError("This method must be implemented in derived class")
+        pass
 
     def defineIO(self):
         """Here you define the functions that get linked to IOs"""
@@ -47,14 +50,14 @@ class BaseImplementation():
         # TODO: Should throw exception on duplicate?
 
     def getLinkedFunctions(self, name):
-        ioid = self.ioNameIds[name]
-        links = self.nodeData["io"][ioid]
+        ioid = self.nodeData["iomap"][name]
+        links = self.nodeData["io"][str(ioid)]  # TODO: Fix nodedata from string to int
         functions = []
         for link in links:
             if link[0] == ioid:
-                functions.append(self.runtime.sheetObjects[link[2]].getIOFunction(link[1]))
+                functions.append(self.runtime.sheetObjects[self.runtime.currentSheet][link[3]].getIOFunction(link[1]))
             elif link[1] == ioid:
-                functions.append(self.runtime.sheetObjects[link[3]].getIOFunction(link[0]))
+                functions.append(self.runtime.sheetObjects[self.runtime.currentSheet][link[2]].getIOFunction(link[0]))
         return functions
 
 
@@ -158,3 +161,41 @@ class SimpleBlackbox(QNodeSceneNode):
     def deserialize(self, data):
         pass
 
+
+class singleExecoutImplementation(BaseImplementation):
+    def defineIO(self):
+        self.registerFunc("execOut", self.fireExecOut)
+
+    def fireExecOut(self, *args, **kwargs):
+        linkedFuncs = self.getLinkedFunctions("execOut")
+        for func in linkedFuncs:
+            if func is not None:
+                func()
+
+class initNode(SimpleBlackbox, QNodeSceneNodeUndeletable):
+    """Blackbox node template with inputs on the left and outputs on the right"""
+    # Here we define some information about the node
+    author = "DrLuke"  # Author of this node (only used for namespacing, never visible to users)
+    modulename = "sheetinit"  # Internal name of the module, make this something distinguishable
+    name = "Init"  # Human-readable name
+
+    placeable = False  # Whether or not this node should be placeable from within the editor
+    Category = ["Builtin"]  # Nested categories this Node should be sorted in
+
+    # Description, similar to python docstrings (Brief summary on first line followed by a long description)
+    description = """Node that gets executed once on sheet initialization."""
+
+    # Class implementing this node.
+    implementation = singleExecoutImplementation
+
+    def defineIO(self):
+        self.addOutput(execType, "execOut", "Init")
+
+class loopNode(initNode):
+    modulename = "sheetloop"
+    name = "Loop"
+
+    def defineIO(self):
+        self.addOutput(execType, "execOut", "Loop")
+
+    description = """Starting point for looping through sheet every frame"""

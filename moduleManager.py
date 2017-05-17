@@ -6,6 +6,8 @@ from PyQt5.QtCore import Qt
 from gui.ModulePickerDialog import Ui_Dialog
 from effigy.QNodeScene import NodeSceneModuleManager
 
+from baseModule import initNode, loopNode
+
 class AddNodeToSceneCommand(QUndoCommand):
     def __init__(self, node, position, scene, *args, **kwargs):
         super(AddNodeToSceneCommand, self).__init__(*args, **kwargs)
@@ -21,6 +23,25 @@ class AddNodeToSceneCommand(QUndoCommand):
     def undo(self):
         self.scene.removeItem(self.node)
 
+def searchModules():
+    foundModules = {}
+    modpaths = glob("modules/*.py")
+    for modpath in modpaths:
+        newmod = importlib.import_module("modules." + modpath[8:-3])
+        for nodeName in newmod.__nodes__:
+            nodeClass = getattr(newmod, nodeName)
+            foundModules[nodeClass.modulename] = nodeClass
+
+            # Then import all modules from home config folder
+            # TODO: Implement
+
+            # Then import all modules from project folder
+            # TODO: Implement
+
+    foundModules["sheetinit"] = initNode
+    foundModules["sheetloop"] = loopNode
+    return foundModules
+
 class ModulePickerDialog(QDialog, NodeSceneModuleManager):
     def __init__(self, project, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
@@ -34,21 +55,8 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
 
         self.availableNodes = {}
 
-    def searchModules(self):
-        newAvailableNodes = {}
-        # Import all builtin modules first
-        modpaths = glob("modules/*.py")
-        for modpath in modpaths:
-            newmod = importlib.import_module("modules." + modpath[8:-3])
-            for nodeName in newmod.__nodes__:
-                nodeClass = getattr(newmod, nodeName)
-                newAvailableNodes[nodeClass.modulename] = nodeClass
-
-                # Then import all modules from home config folder
-                # TODO: Implement
-
-                # Then import all modules from project folder
-                # TODO: Implement
+    def searchAndCompareModules(self):
+        newAvailableNodes = searchModules()
 
         if not newAvailableNodes == self.availableNodes:
             self.categoryTree = {}
@@ -58,14 +66,14 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
         return False    # No change found
 
     def selectNode(self, position, inType:type=None, outType:type=None):
-        if self.searchModules():
+        if self.searchAndCompareModules():
             for nodeName in self.availableNodes:
-                print("-----")
-                returnItem = self.checkOrCreateCategory(self.availableNodes[nodeName].Category, self.ui.treeWidget)
-                newItem = QTreeWidgetItem(1002)  # Type 1002 for modules
-                newItem.setText(0, self.availableNodes[nodeName].name)
-                returnItem.addChild(newItem)
-                newItem.setData(1, Qt.UserRole, nodeName)
+                if self.availableNodes[nodeName].placeable:
+                    returnItem = self.checkOrCreateCategory(self.availableNodes[nodeName].Category, self.ui.treeWidget)
+                    newItem = QTreeWidgetItem(1002)  # Type 1002 for modules
+                    newItem.setText(0, self.availableNodes[nodeName].name)
+                    returnItem.addChild(newItem)
+                    newItem.setData(1, Qt.UserRole, nodeName)
 
         self.exec()
 

@@ -9,6 +9,8 @@ import uuid
 
 import glfw
 
+from moduleManager import searchModules
+
 ## ss -l -4
 
 
@@ -33,6 +35,9 @@ class WorkerHandler():
         self.inbuf = ""
 
         self.monitors = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in glfw.get_monitors()]
+
+        for monitor in self.monitors:
+            self.glfwWorkers[monitor] = glfwWorker(monitor)
 
     def run(self):
         """Main loop"""
@@ -80,6 +85,9 @@ class WorkerHandler():
             self.outbuf = ""
 
         self.parseInbuf()
+
+        for worker in self.glfwWorkers.values():
+            worker.tick()
 
     @rate_limited(1)
     def discoveryBroadcast(self):
@@ -142,9 +150,13 @@ class glfwWorker:
     def __init__(self, monitor):
         self.monitor = monitor
 
+        self.availableModules = {}
         self.sheetdata = {}
-
         self.sheetObjects = {}
+
+        self.currentSheet = None
+        self.sheetInitId = None
+        self.sheetLoopId = None
 
         # --- Runtime variables
         self.time = glfw.get_time()
@@ -152,32 +164,58 @@ class glfwWorker:
     def tick(self):
         self.time = glfw.get_time()
 
+        if self.currentSheet in self.sheetObjects:
+            if self.sheetLoopId in self.sheetObjects[self.currentSheet]:
+                self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
+
+
     def decodeSheetdelta(self, msg):
         sheetid = msg["sheet"]
         if not sheetid in self.sheetdata:
-            self.sheetdata[sheetid] = {}
+            self.sheetdata[int(sheetid)] = {}
         for nodeid in msg["added"]:
-            self.sheetdata[sheetid][nodeid] = msg["added"][nodeid]
+            self.sheetdata[int(sheetid)][int(nodeid)] = msg["added"][nodeid]
         for nodeid in msg["changed"]:
-            self.sheetdata[sheetid][nodeid] = msg["added"][nodeid]
+            self.sheetdata[int(sheetid)][int(nodeid)] = msg["changed"][nodeid]
         for nodeid in msg["deleted"]:
-            del self.sheetdata[sheetid][nodeid]
+            del self.sheetdata[int(sheetid)][int(nodeid)]
 
         self.updateSheetObjects()
 
     def updateSheetObjects(self):
+        self.availableModules = searchModules()
         for sheetId in self.sheetdata:
             if not sheetId in self.sheetObjects:
                 self.sheetObjects[sheetId] = {}
             for nodeId in self.sheetdata[sheetId]:
-                if nodeId not in self.sheetObjects[sheetId]:
-                    pass    # TODO: Create object from node.modulename and add to sheetObjects[nodeId]
-                else:
-                    pass    # TODO: Update all IO connections on existing objects
-            for nodeId in self.sheetObjects:
-                if not nodeId in self.sheetdata[sheetId]:
-                    del self.sheetObjects[nodeId]
+                if nodeId not in self.sheetObjects[sheetId]:    # Create new object from implementation class
+                    self.sheetObjects[sheetId][nodeId] = \
+                        self.availableModules[self.sheetdata[sheetId][nodeId]["modulename"]].implementation(
+                            self.sheetdata[sheetId][nodeId],
+                            nodeId,
+                            self)
+                else:   # Update nodeData in implementations
+                    self.sheetObjects[sheetId][nodeId].nodeData = self.sheetdata[sheetId][nodeId]
 
+        dellist = []
+        for sheetId in self.sheetObjects:
+            self.currentSheet = sheetId  # FIXME: WORKAROUND UNTIL SHEET SELECTION IS IMPLEMENTED!!!
+            for nodeId in self.sheetObjects[sheetId]:
+                nodeExists = False
+                for sheetId in self.sheetdata:
+                    if nodeId in self.sheetdata[sheetId]:
+                        nodeExists = True
+                if not nodeExists:
+                    dellist.append(nodeId)
+        for delid in dellist:
+            del self.sheetObjects[delid]
+
+        if self.currentSheet:
+            for nodeId in self.sheetdata[self.currentSheet]:
+                if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetinit":
+                    self.sheetInitId = nodeId
+                if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
+                    self.sheetLoopId = nodeId
 
 
 if __name__ == "__main__":
@@ -190,6 +228,6 @@ if __name__ == "__main__":
     while 1:    # Limit framerate to 100 frames TODO: Make adjustable
         dt = glfw.get_time() - gtime
         wh.run()
-        time.sleep(max(0.01 - dt, 0))
+        time.sleep(max(0.1 - dt, 0))
         gtime = glfw.get_time()
 

@@ -19,6 +19,7 @@ class WorkerManager():
         self.workers = {}
 
         self.discoverysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.discoverysocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.discoverysocket.bind(("", 31338))
 
         self.infograbberCounter = 0
@@ -100,6 +101,9 @@ class WorkerManager():
     def grabPeriodicInfos(self):
         for worker in self.workers.values():
             worker.requestMonitors()
+
+    def __del__(self):
+        self.discoverysocket.close()
 
 class Worker():
     """Represents a single worker.
@@ -240,3 +244,6 @@ class Worker():
                 self.monitorState[monitor]["treeItem"].setIcon(0, self.monitorGoneIcon)
 
         # TODO: Set sheet item state here (blue for active, but no sheet, red for gone, black for all good)
+
+    def __del__(self):
+        self.tcpsock.close()

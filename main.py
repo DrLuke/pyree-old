@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem
+from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem, QFileDialog
 from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer, QPointF
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
 
@@ -6,13 +6,14 @@ from effigy.QNodeScene import QNodeScene
 from effigy.QNodeView import QNodeView
 from effigy.QNodeSceneNode import QNodeSceneNode
 
-from moduleManager import ModulePickerDialog
+from moduleManager import ModulePickerDialog, searchModules
 from workerManager import WorkerManager
 
 from baseModule import initNode, loopNode
 
 import sys, os
 import uuid
+import json
 from types import MethodType
 
 class Sheet():
@@ -26,25 +27,49 @@ class Sheet():
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
         self.id = self.listItem.data(Qt.UserRole)   # Get ID from the listitem
-
-        self.initnode = initNode()
-        self.scene.addItem(self.initnode)
-        self.loopnode = loopNode()
-        self.scene.addItem(self.loopnode)
-        self.loopnode.setPos(QPointF(0, 100))
-
-        self.name = self.listItem.text()
+        self.project = project
 
         self.sceneUndoStackIndexChangedCallback = None
         self.scene.undostack.indexChanged.connect(self.sceneUndoStackIndexChanged)
 
-    def saveToFile(self, path):
+        if data is not None:
+            self.deserialize(data)
+        else:
+            self.initnode = initNode()
+            self.scene.addItem(self.initnode)
+            self.loopnode = loopNode()
+            self.scene.addItem(self.loopnode)
+            self.loopnode.setPos(QPointF(0, 100))
+
+            self.name = self.listItem.text()
+
+
+
+    def serialize(self):
         data = {}
         nodes = [x for x in self.scene.items() if issubclass(type(x), QNodeSceneNode)]  # Get all nodes in scene
+
+        data["name"] = self.name
 
         data["nodes"] = {}
         for node in nodes:
             data["nodes"][node.id] = node.serializeinternal()
+
+        return data
+
+    def deserialize(self, data):
+        self.name = data["name"]
+        for nodedata in data["nodes"].values():
+            modulename = nodedata["modulename"]
+            try:
+                newNodeClass = self.project.availableModules[modulename]
+            except KeyError:
+                print("Module %s doesn't seem to exist anymore." % modulename)
+                continue
+
+            newNode = newNodeClass(setID=nodedata["uuid"])
+            self.scene.addItem(newNode)
+            newNode.deserializeinternal(nodedata)
 
     def serializeLinksOnly(self):
         nodes = [x for x in self.scene.items() if issubclass(type(x), QNodeSceneNode)]  # TODO: Does this cause performance issues on large sheets?
@@ -82,27 +107,41 @@ class PyreeProject():
         self.tickInterval = 20  # 100Hz
 
         self.sheets = {}    # List of all sheets in the project
+        self.selectedSheet = None
 
         self.workerManager = WorkerManager(self, self.ui.workersTreeWidget)
 
-
+        self.availableModules = searchModules()
 
         if filePath is not None:
             self.loadFromFile(filePath)
 
     def loadFromFile(self, path):
         """Load project from file"""
-        data = {}
+        self.filePath = path
 
-        self.projectName = data["projectName"]
+        with open(path, "r") as f:
+            data = json.load(f)
+
+        for sheetdata in data["sheets"]:
+            newTreeItem = QListWidgetItem(sheetdata["name"], self.ui.sheetListWidget)
+            newTreeItem.setData(Qt.UserRole, uuid.uuid4().int)  # Add some uniquely identifying data to make it hashable
+
+            self.newSheet(newTreeItem, sheetdata)
 
     def saveToFile(self, path):
         """Save current project to file"""
+        self.filePath = path
+
         data = {}
-        data["sheets"] = {}
+        data["sheets"] = []
         for i in range(self.listWidget.count()):
-            listItem = self.ui.listWidget.item(i)
-            # TODO: Write sheets to file
+            listItem = self.ui.sheetListWidget.item(i)
+            sheetid = listItem.data(Qt.UserRole)
+            data["sheets"].append(self.sheets[sheetid].serialize())
+
+        with open(path, "w") as f:
+            json.dump(data, f)
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
@@ -119,15 +158,51 @@ class PyreeMainWindow(QMainWindow):
         self.ui = Ui_PyreeMainWindow()
         self.ui.setupUi(self)
 
-        self.currentProject = PyreeProject(self.ui)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.currentProject.workerManager.tick)
-        self.timer.start(self.currentProject.tickInterval)
+        self.currentProject = None
+        self.openProject()  # Spawn empty project
 
         # Also triggered by pressing enter on sheetLineEdit
         self.ui.addSheetPushButton.clicked.connect(self.addSheetPushButtonClicked)
         self.ui.sheetListWidget.itemChanged.connect(self.sheetListWidgetItemChanges)
         self.ui.sheetListWidget.itemDoubleClicked.connect(self.sheetListWidgetItemDoubleClicked)
+
+        # --- Menu Actions
+        self.ui.actionNew_Project.triggered.connect(lambda x: self.openProject())
+        self.ui.actionOpen.triggered.connect(self.openProjectDialog)
+        self.ui.actionSave.triggered.connect(self.saveProjectDialog)
+        self.ui.actionSave_as.triggered.connect(lambda x: self.saveProjectDialog(True))
+
+    def openProjectDialog(self):
+        fileDialog = QFileDialog()
+        fileDialog.setDefaultSuffix("pyr")
+        fileDialog.setFileMode(QFileDialog.ExistingFile)
+        fileDialog.setNameFilters(["Pyree Project Files (*.pyr)", "Any files (*)"])
+        if fileDialog.exec():
+            self.openProject(fileDialog.selectedFiles()[0])
+
+    def saveProjectDialog(self, saveAs = False):
+        if saveAs or self.currentProject.filePath is None:
+            fileDialog = QFileDialog()
+            fileDialog.setDefaultSuffix("pyr")
+            fileDialog.setFileMode(QFileDialog.AnyFile)
+            fileDialog.setNameFilters(["Pyree Project Files (*.pyr)", "Any files (*)"])
+            if fileDialog.exec():
+                self.currentProject.saveToFile(fileDialog.selectedFiles()[0])
+        else:
+            self.currentProject.saveToFile(self.currentProject.filePath)
+
+    def openProject(self, filePath=None):
+        # TODO: Check/Ask if previous project should be saved or not
+        self.ui.tabWidget.clear()
+        self.ui.sheetListWidget.clear()
+        self.ui.workersTreeWidget.clear()
+
+        self.currentProject = PyreeProject(self.ui, filePath=filePath)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.currentProject.workerManager.tick)
+        self.timer.start(self.currentProject.tickInterval)
+
+
 
     def addSheetPushButtonClicked(self, checked):
         if self.ui.addSheetLineEdit.text():     # If the text field isn't empty
@@ -143,6 +218,9 @@ class PyreeMainWindow(QMainWindow):
                 self.ui.tabWidget.setTabText(tabIndx, item.text())
         except KeyError:
             pass
+
+    def sheetListWidgetItemClicked(self, item):
+        self.currentProject.selectedSheet = item.data(Qt.UserRole)
 
     def sheetListWidgetItemDoubleClicked(self, item):
         tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)

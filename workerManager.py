@@ -11,8 +11,7 @@ class WorkerManager():
 
     The WorkerManager discovers and keeps track of workers. It synchronzies all sheet changes to workers when it's necessary.
     It also establishes a channel for node-to-implementation communications."""
-    def __init__(self, project, treeWidget):
-        self.project = project
+    def __init__(self, treeWidget):
         self.treeWidget = treeWidget
 
         self.sheetDeltaMemory = {}
@@ -30,7 +29,6 @@ class WorkerManager():
         rlist, wlist, elist = select([self.discoverysocket], [], [], 0)
         if rlist:
             received = self.discoverysocket.recvfrom(4096)[0]
-
             try:
                 discoverydata = json.loads(bytes.decode(received))
             except json.JSONDecodeError:
@@ -246,4 +244,5 @@ class Worker():
         # TODO: Set sheet item state here (blue for active, but no sheet, red for gone, black for all good)
 
     def __del__(self):
+        print("pew")
         self.tcpsock.close()

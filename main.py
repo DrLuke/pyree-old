@@ -20,14 +20,15 @@ class Sheet():
     """Sheet manager
 
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
-    def __init__(self, listItem:QListWidgetItem, project, data=None):
-        self.scene = QNodeScene(ModulePickerDialog(project))
+    def __init__(self, listItem:QListWidgetItem, data=None):
+        self.scene = QNodeScene(ModulePickerDialog())
         self.view = QNodeView()
         self.view.setScene(self.scene)
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
         self.id = self.listItem.data(Qt.UserRole)   # Get ID from the listitem
-        self.project = project
+
+        self.availableModules = searchModules()
 
         self.sceneUndoStackIndexChangedCallback = None
         self.scene.undostack.indexChanged.connect(self.sceneUndoStackIndexChanged)
@@ -42,7 +43,6 @@ class Sheet():
             self.loopnode.setPos(QPointF(0, 100))
 
             self.name = self.listItem.text()
-
 
 
     def serialize(self):
@@ -62,7 +62,7 @@ class Sheet():
         for nodedata in data["nodes"].values():
             modulename = nodedata["modulename"]
             try:
-                newNodeClass = self.project.availableModules[modulename]
+                newNodeClass = self.availableModules[modulename]
             except KeyError:
                 print("Module %s doesn't seem to exist anymore." % modulename)
                 continue
@@ -109,7 +109,7 @@ class PyreeProject():
         self.sheets = {}    # List of all sheets in the project
         self.selectedSheet = None
 
-        self.workerManager = WorkerManager(self, self.ui.workersTreeWidget)
+        self.workerManager = WorkerManager(self.ui.workersTreeWidget)
 
         self.availableModules = searchModules()
 
@@ -145,7 +145,7 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
-        newSheet = Sheet(listItem, self, data)
+        newSheet = Sheet(listItem, data)
         self.sheets[listItem.data(Qt.UserRole)] = newSheet  # Add sheet to list of sheets
         newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
         self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state
@@ -161,16 +161,19 @@ class PyreeMainWindow(QMainWindow):
         self.currentProject = None
         self.openProject()  # Spawn empty project
 
+        # --- Sheet related signals
         # Also triggered by pressing enter on sheetLineEdit
         self.ui.addSheetPushButton.clicked.connect(self.addSheetPushButtonClicked)
         self.ui.sheetListWidget.itemChanged.connect(self.sheetListWidgetItemChanges)
         self.ui.sheetListWidget.itemDoubleClicked.connect(self.sheetListWidgetItemDoubleClicked)
+        self.ui.tabWidget.tabCloseRequested.connect(lambda index: self.ui.tabWidget.removeTab(index))
 
         # --- Menu Actions
         self.ui.actionNew_Project.triggered.connect(lambda x: self.openProject())
         self.ui.actionOpen.triggered.connect(self.openProjectDialog)
         self.ui.actionSave.triggered.connect(self.saveProjectDialog)
         self.ui.actionSave_as.triggered.connect(lambda x: self.saveProjectDialog(True))
+
 
     def openProjectDialog(self):
         fileDialog = QFileDialog()
@@ -213,9 +216,10 @@ class PyreeMainWindow(QMainWindow):
     def sheetListWidgetItemChanges(self, item):
         # If the listItem changes, update tab name
         try:
-            tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)
-            if not tabIndx == -1:
-                self.ui.tabWidget.setTabText(tabIndx, item.text())
+            if self.currentProject is not None:
+                tabIndx = self.ui.tabWidget.indexOf(self.currentProject.sheets[item.data(Qt.UserRole)].view)
+                if not tabIndx == -1:
+                    self.ui.tabWidget.setTabText(tabIndx, item.text())
         except KeyError:
             pass
 

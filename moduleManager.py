@@ -43,11 +43,10 @@ def searchModules():
     return foundModules
 
 class ModulePickerDialog(QDialog, NodeSceneModuleManager):
-    def __init__(self, project, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
         NodeSceneModuleManager.__init__(self)
 
-        self.project = project
         self.scene = None
 
         self.ui = Ui_Dialog()

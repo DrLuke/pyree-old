@@ -115,7 +115,7 @@ class SimpleBlackbox(QNodeSceneNode):
                 ioDefinition.append(QGraphicsTextItem(ioDefinition[2], ioDefinition[3]))
                 maxInputWidth = max(maxInputWidth, ioDefinition[4].boundingRect().width())
                 ioDefinition[4].setPos(QPointF(horizontalTextToIoDistance, - ioDefinition[3].boundingRect().height() / 2 - ioDefinition[4].boundingRect().height() / 4))
-                self.IO[ioDefinition[2]] = ioDefinition[3]
+                self.IO[ioDefinition[1]] = ioDefinition[3]
 
         for ioDefinition in self.outputs:
             if ioDefinition[0] is not None:
@@ -123,7 +123,7 @@ class SimpleBlackbox(QNodeSceneNode):
                 ioDefinition.append(QGraphicsTextItem(ioDefinition[2], ioDefinition[3]))
                 maxOutputWidth = max(maxInputWidth, ioDefinition[4].boundingRect().width())
                 ioDefinition[4].setPos(QPointF(- horizontalTextToIoDistance - ioDefinition[4].boundingRect().width(), - ioDefinition[3].boundingRect().height() / 2 - ioDefinition[4].boundingRect().height() / 4))
-                self.IO[ioDefinition[2]] = ioDefinition[3]
+                self.IO[ioDefinition[1]] = ioDefinition[3]
 
         width = max(maxInputWidth + maxOutputWidth + horizontalIoDistance, nodeTitleWidth + titlePadding)
         height = verticalIoSpacing * (max(len(self.inputs), len(self.outputs)) + indexOffset - 1)

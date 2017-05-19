@@ -142,17 +142,16 @@ class Worker():
 
 
     def tick(self):
-        if self.tcpsock is not None:
+        if self.tcpsock is not None and self.valid:
             wlist = []
             if self.outBuf:
                 wlist.append(self.tcpsock)
             rlist,wlist,elist = select([self.tcpsock], wlist, [], 0)
             if rlist:
-                recvbuf = ""
+                recvbuf = self.tcpsock.recv(4096)
+                if len(recvbuf) == 0:
+                    self.handleLostConnection()
                 try:
-                    recvbuf = self.tcpsock.recv(4096)
-                    if len(recvbuf) == 0:
-                        self.handleLostConnection()
                     self.inBuf += bytes.decode(recvbuf)
                 except UnicodeDecodeError:
                     print("-------------\nReceived garbled unicode: %s\n-------------" % recvbuf)
@@ -161,14 +160,20 @@ class Worker():
             if wlist:
                 sent = self.tcpsock.send(str.encode(self.outBuf))
                 self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
+        else:
+            self.handleLostConnection()
 
     def handleLostConnection(self):
         self.valid = False
         self.treeItem.setIcon(0, self.workerLostConnection)
-        self.tcpsock.close()
+        if self.tcpsock is not None:
+            self.tcpsock.close()
+
         self.tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.tcpsock.connect((self.ip, self.port))
+            self.valid = True
+            self.treeItem.setIcon(0, self.workerOkIcon)
         except ConnectionRefusedError:
             pass
 

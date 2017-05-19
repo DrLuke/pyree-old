@@ -69,7 +69,7 @@ class WorkerHandler():
 
         rlist, wlist, elist = select(rlist, wlist, [], 0)
         if self.controllerConn in rlist:
-            incomingData = self.controllerConn.recv(1024)
+            incomingData = self.controllerConn.recv(4096)
             if not incomingData:    # AKA connection is dead
                 print("Connection from " + str(self.controllerAddr) + " died.")
                 self.controllerConn.close()

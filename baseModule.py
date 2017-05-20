@@ -1,5 +1,5 @@
 from effigy.QNodeSceneNode import QNodeSceneNode, QNodeSceneNodeUndeletable
-from effigy.NodeIO import NodeIO, NodeOutput, NodeInput
+from effigy.NodeIO import NodeIO, NodeOutput, NodeInput, NodeIODirection, NodeIOMultiplicity
 
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
 from PyQt5.QtCore import QRectF, QPointF, Qt
@@ -8,6 +8,16 @@ from PyQt5.QtGui import QPen, QColor, QBrush, QFont
 class execType:
     """typedef for exec-pins"""
     pass
+
+class ExecInput(NodeIO):
+    """General Input class for Node links. See NodeIO class for more information."""
+    classDirection = NodeIODirection.input
+    classMultiplicity = NodeIOMultiplicity.multiple
+
+class ExecOutput(NodeIO):
+    """General Input class for Node links. See NodeIO class for more information."""
+    classDirection = NodeIODirection.output
+    classMultiplicity = NodeIOMultiplicity.single
 
 class BaseImplementation():
     """Code associated with a node that will run on the worker"""
@@ -111,7 +121,10 @@ class SimpleBlackbox(QNodeSceneNode):
 
         for ioDefinition in self.inputs:
             if ioDefinition[0] is not None:
-                ioDefinition.append(NodeInput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
+                if ioDefinition[0] is execType:
+                    ioDefinition.append(ExecInput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
+                else:
+                    ioDefinition.append(NodeInput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
                 ioDefinition.append(QGraphicsTextItem(ioDefinition[2], ioDefinition[3]))
                 maxInputWidth = max(maxInputWidth, ioDefinition[4].boundingRect().width())
                 ioDefinition[4].setPos(QPointF(horizontalTextToIoDistance, - ioDefinition[3].boundingRect().height() / 2 - ioDefinition[4].boundingRect().height() / 4))
@@ -119,7 +132,10 @@ class SimpleBlackbox(QNodeSceneNode):
 
         for ioDefinition in self.outputs:
             if ioDefinition[0] is not None:
-                ioDefinition.append(NodeOutput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
+                if ioDefinition[0] is execType:
+                    ioDefinition.append(ExecOutput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
+                else:
+                    ioDefinition.append(NodeOutput(ioDefinition[0], parent=self, name=ioDefinition[1], displaystr=ioDefinition[2]))
                 ioDefinition.append(QGraphicsTextItem(ioDefinition[2], ioDefinition[3]))
                 maxOutputWidth = max(maxInputWidth, ioDefinition[4].boundingRect().width())
                 ioDefinition[4].setPos(QPointF(- horizontalTextToIoDistance - ioDefinition[4].boundingRect().width(), - ioDefinition[3].boundingRect().height() / 2 - ioDefinition[4].boundingRect().height() / 4))

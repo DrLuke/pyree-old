@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem, QFileDialog
 from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer, QPointF
+from PyQt5.QtGui import QIcon
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
 
 from effigy.QNodeScene import QNodeScene
@@ -150,6 +151,11 @@ class PyreeProject():
         newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
         self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state
 
+    def getFirstSelectedSheetId(self):
+        selected = self.ui.sheetListWidget.selectedItems()
+        if selected:
+            return selected[0].data(Qt.UserRole)
+
 class PyreeMainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(PyreeMainWindow, self).__init__(*args, **kwargs)
@@ -157,6 +163,13 @@ class PyreeMainWindow(QMainWindow):
         # Import UI from QT designer
         self.ui = Ui_PyreeMainWindow()
         self.ui.setupUi(self)
+
+        # FIXME: The paths to these should be set properly in the pyuic generated file. Write to Mailinglist detailing problem.
+        self.ui.monitorPlayButton.setIcon(QIcon("resources/icons/control_play.png"))
+        self.ui.monitorPauseButton.setIcon(QIcon("resources/icons/control_pause.png"))
+        self.ui.monitorStopButton.setIcon(QIcon("resources/icons/control_stop.png"))
+        self.ui.monitorSetsheetButton.setIcon(QIcon("resources/icons/script_go.png"))
+
 
         self.currentProject = None
         self.openProject()  # Spawn empty project
@@ -173,6 +186,12 @@ class PyreeMainWindow(QMainWindow):
         self.ui.actionOpen.triggered.connect(self.openProjectDialog)
         self.ui.actionSave.triggered.connect(self.saveProjectDialog)
         self.ui.actionSave_as.triggered.connect(lambda x: self.saveProjectDialog(True))
+
+        # --- Worker related Actions
+        self.ui.monitorPlayButton.clicked.connect(lambda x: self.currentProject.workerManager.controlsPressed("play"))
+        self.ui.monitorPauseButton.clicked.connect(lambda x: self.currentProject.workerManager.controlsPressed("pause"))
+        self.ui.monitorStopButton.clicked.connect(lambda x: self.currentProject.workerManager.controlsPressed("stop"))
+        self.ui.monitorSetsheetButton.clicked.connect(lambda x: self.currentProject.workerManager.controlsPressed("setsheet", self.currentProject.getFirstSelectedSheetId()))
 
 
     def openProjectDialog(self):

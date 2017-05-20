@@ -34,10 +34,10 @@ class WorkerHandler():
         self.outbuf = ""    # IO buffer for controller
         self.inbuf = ""
 
-        self.monitors = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in glfw.get_monitors()]
+        self.monitors = glfw.get_monitors()
 
-        for monitor in self.monitors:
-            self.glfwWorkers[monitor] = glfwWorker(monitor)
+        for monitor in glfw.get_monitors():
+            self.glfwWorkers[bytes.decode(glfw.get_monitor_name(monitor))] = glfwWorker(monitor)
 
     def run(self):
         """Main loop"""
@@ -116,9 +116,11 @@ class WorkerHandler():
             return
 
         type = decoded["msgtype"]
-        if type == "sheetdelta":
+        if type == "control":
+            self.handleControl(decoded)
+        elif type == "sheetdelta":
             self.passSheetDelta(decoded)
-        if type == "request":
+        elif type == "request":
             self.handleRequest(decoded)
 
     def passSheetDelta(self, msg):
@@ -130,13 +132,28 @@ class WorkerHandler():
         if request == "monitors":
             self.sendMonitorsReply(msg["msgid"])
 
+    def handleControl(self, msg):
+        command = msg["command"]
+        monitor = msg["monitor"]
+        if "sheetid" in msg:
+            sheetid = msg["sheetid"]
+        else:
+            sheetid = None
+
+        if monitor == "all":
+            for worker in self.glfwWorkers.values():
+                worker.controlInput(command, sheetid)
+        else:
+            self.glfwWorkers[monitor].controlInput(command, sheetid)
+
+
     def sendMonitorsReply(self, msgid):
-        self.monitors = [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in glfw.get_monitors()]   # TODO: Fix this!
+        self.monitors = glfw.get_monitors()
         msg = {
             "msgid": uuid.uuid4().int,
             "msgtype": "reply",
             "refid": msgid,
-            "replydata": self.monitors
+            "replydata": [bytes.decode(glfw.get_monitor_name(monitor)) for monitor in self.monitors]
         }
 
         self.sendMessage(msg)
@@ -149,6 +166,7 @@ class glfwWorker:
     """GLFW instance for each display"""
     def __init__(self, monitor):
         self.monitor = monitor
+        self.window = None
 
         self.availableModules = {}
         self.sheetdata = {}
@@ -159,14 +177,16 @@ class glfwWorker:
         self.sheetLoopId = None
 
         # --- Runtime variables
+        self.state = "stop"
         self.time = glfw.get_time()
 
     def tick(self):
         self.time = glfw.get_time()
 
-        if self.currentSheet in self.sheetObjects:
-            if self.sheetLoopId in self.sheetObjects[self.currentSheet]:
-                self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
+        if self.state == "play" and self.window is not None:
+            if self.currentSheet in self.sheetObjects:
+                if self.sheetLoopId in self.sheetObjects[self.currentSheet]:
+                    self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
 
 
     def decodeSheetdelta(self, msg):
@@ -182,7 +202,10 @@ class glfwWorker:
 
         self.updateSheetObjects()
 
-    def updateSheetObjects(self):
+    def updateSheetObjects(self, reset=False):
+        if reset:   # Reset entire runtime, recreate all nodes
+            self.sheetObjects = {}
+
         self.availableModules = searchModules()
         for sheetId in self.sheetdata:
             if not sheetId in self.sheetObjects:
@@ -197,9 +220,9 @@ class glfwWorker:
                 else:   # Update nodeData in implementations
                     self.sheetObjects[sheetId][nodeId].nodeData = self.sheetdata[sheetId][nodeId]
 
-        dellist = []
+
         for sheetId in self.sheetObjects:
-            self.currentSheet = sheetId  # FIXME: WORKAROUND UNTIL SHEET SELECTION IS IMPLEMENTED!!!
+            dellist = []
             for nodeId in self.sheetObjects[sheetId]:
                 nodeExists = False
                 for sheetId in self.sheetdata:
@@ -207,8 +230,8 @@ class glfwWorker:
                         nodeExists = True
                 if not nodeExists:
                     dellist.append(nodeId)
-        for delid in dellist:
-            del self.sheetObjects[delid]
+            for delid in dellist:
+                del self.sheetObjects[sheetId][delid]
 
         if self.currentSheet:
             for nodeId in self.sheetdata[self.currentSheet]:
@@ -217,6 +240,38 @@ class glfwWorker:
                 if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
                     self.sheetLoopId = nodeId
 
+    def createWindow(self):
+        self.videomode = glfw.get_video_mode(self.monitor)
+        #self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", self.monitor, None)    # Fullscreen
+        self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", None, None) # windowed
+
+        #glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
+
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+
+    def closeWindow(self):
+        glfw.destroy_window(self.window)
+
+    def controlInput(self, command, sheetid=None):
+        if command == self.state:
+            return
+        if command == "play":
+            if self.state == "pause":
+                self.state = "play"
+            elif self.state == "stop":
+                self.createWindow()
+                self.updateSheetObjects(reset=True)
+                self.state = "play"
+        elif command == "pause":
+            self.state = "pause"
+        elif command == "stop":
+            self.closeWindow()
+            self.state = "stop"
+        elif command == "setsheet":
+            self.currentSheet = sheetid
+            self.updateSheetObjects(reset=True)
 
 if __name__ == "__main__":
     if not glfw.init():

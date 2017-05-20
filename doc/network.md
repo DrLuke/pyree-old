@@ -23,6 +23,21 @@ Each message must only be of one type. For each type there is a different set of
 
 ### `control`
 This message type is meant for sending control commands to the worker, like pause or resume, or which sheet to run on which display.
+#### `monitor (string)`
+What monitor the command applies to (`all` if all are adressed)
+#### `command (string)`
+The command that the worker is meant to obey. It can be one of the following:
+* `play`
+  Spawn GLFW window and start running on this monitor, or just resume execution if the monitor is just paused.
+* `pause`
+  Halt execution
+* `stop`
+  Halt execution, close GLFW window and delete all objects.
+* `setsheet`
+  Set the main running sheet to the given sheet (requires that the sheet field is given as well!)
+
+#### `sheet (int)`
+ID of sheet that is to be the new execution sheet with `setsheet` command
 
 ### `sheetdelta`
 Changes of sheets get transferred with this command. To save bandwidth and unnecessary information transfer, all node data is limited to the module name and it's links.

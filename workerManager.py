@@ -100,6 +100,17 @@ class WorkerManager():
         for worker in self.workers.values():
             worker.requestMonitors()
 
+    def controlsPressed(self, control, selectedsheet=None):
+        selected = self.treeWidget.selectedItems()
+        for item in selected:
+            if item.type() == 1001:
+                worker = self.workers[item.text(0)]
+                worker.monitorPlayControls("all", control, selectedsheet)
+            elif item.type() == 1002:
+                parent = item.parent()
+                worker = self.workers[parent.text(0)]
+                worker.monitorPlayControls(item.text(0), control, selectedsheet)
+
     def __del__(self):
         self.discoverysocket.close()
 
@@ -239,15 +250,35 @@ class Worker():
                 self.monitorState[monitor]["treeItem"].setIcon(0, self.monitorOkIcon)
                 self.treeItem.addChild(self.monitorState[monitor]["treeItem"])
                 self.treeItem.setExpanded(True)
-                self.monitorState[monitor]["available"] = True
+                self.monitorState[monitor]["state"] = "stop"
                 self.monitorState[monitor]["sheet"] = None
         for monitor in self.monitorState:
             if monitor not in self.monitors:    # Monitor exists in state, but is not available anymore
-                self.monitorState[monitor]["available"] = False
+                self.monitorState[monitor]["state"] = "gone"
                 self.monitorState[monitor]["treeItem"].setIcon(0, self.monitorGoneIcon)
 
         # TODO: Set sheet item state here (blue for active, but no sheet, red for gone, black for all good)
 
+    def monitorPlayControls(self, monitor, command, sheetid=None):
+        msg = {}
+        msg["id"] = uuid.uuid4().int
+        msg["msgtype"] = "control"
+        msg["monitor"] = monitor
+        msg["command"] = command
+        if sheetid is not None:
+            msg["sheetid"] = sheetid
+
+        # Catch trying to send a setsheet command without a sheet
+        if not (sheetid is None and command == "setsheet"):
+            self.sendMessage(msg)
+
+    def setMonitorState(self, monitor, state):
+        if not state == "setsheet":
+            if monitor == "all":
+                for monitorstate in self.monitorState.values():
+                    monitorstate["state"] = state
+            elif monitor in self.monitorState:
+                self.monitorState[monitor]["state"] = state
+
     def __del__(self):
-        print("pew")
         self.tcpsock.close()

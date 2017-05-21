@@ -7,10 +7,10 @@ from effigy.QNodeScene import QNodeScene
 from effigy.QNodeView import QNodeView
 from effigy.QNodeSceneNode import QNodeSceneNode
 
-from moduleManager import ModulePickerDialog, searchModules
+from moduleManager import ModulePickerDialog, searchModules, AddNodeToSceneCommand
 from workerManager import WorkerManager
 
-from baseModule import initNode, loopNode
+from baseModule import initNode, loopNode, PyreeNode
 
 import sys, os
 import uuid
@@ -21,8 +21,8 @@ class Sheet():
     """Sheet manager
 
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
-    def __init__(self, listItem:QListWidgetItem, data=None):
-        self.scene = QNodeScene(ModulePickerDialog())
+    def __init__(self, listItem:QListWidgetItem, sendMessageCallback, data=None):
+        self.scene = QNodeScene(ModulePickerDialog(sendMessageCallback))
         self.view = QNodeView()
         self.view.setScene(self.scene)
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
@@ -31,8 +31,11 @@ class Sheet():
 
         self.availableModules = searchModules()
 
+        # --- Pass scene changes
         self.sceneUndoStackIndexChangedCallback = None
         self.scene.undostack.indexChanged.connect(self.sceneUndoStackIndexChanged)
+
+        self.workerManagerSendNodeData = None
 
         if data is not None:
             self.deserialize(data)
@@ -90,7 +93,6 @@ class Sheet():
 
         return data
 
-
     def sceneUndoStackIndexChanged(self, index):
         if issubclass(type(self.sceneUndoStackIndexChangedCallback), MethodType):
             self.sceneUndoStackIndexChangedCallback(self)
@@ -146,7 +148,7 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
-        newSheet = Sheet(listItem, data)
+        newSheet = Sheet(listItem, self.workerManager.sendNodedataToAll, data)
         self.sheets[listItem.data(Qt.UserRole)] = newSheet  # Add sheet to list of sheets
         newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
         self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state
@@ -251,6 +253,12 @@ class PyreeMainWindow(QMainWindow):
             tabIndx = self.ui.tabWidget.addTab(self.currentProject.sheets[item.data(Qt.UserRole)].view, item.text())
 
         self.ui.tabWidget.setCurrentIndex(tabIndx)
+
+    def keyPressEvent(self, QKeyEvent):
+        if QKeyEvent.key() == Qt.Key_S and QKeyEvent.modifiers() == Qt.ControlModifier:
+            self.saveProjectDialog()
+        else:
+            super(PyreeMainWindow, self).keyPressEvent(QKeyEvent)
 
 
 if __name__ == "__main__":

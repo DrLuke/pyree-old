@@ -1,4 +1,5 @@
 from baseModule import SimpleBlackbox, BaseImplementation, execType
+from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer, QPointF
 
 __nodes__ = ["TestBBNode"]
 
@@ -17,6 +18,9 @@ class testImplementation(BaseImplementation):
     def defineIO(self):
         self.registerFunc("execin", self.execIn)
 
+    def receiveNodedata(self, data):
+        print(data)
+
 class TestBBNode(SimpleBlackbox):
 
     name = "Foo"
@@ -28,6 +32,11 @@ class TestBBNode(SimpleBlackbox):
 
     implementation = testImplementation
 
+    def __init__(self, *args, **kwargs):
+        super(TestBBNode, self).__init__(*args, **kwargs)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.lololol)
+        self.timer.start(1000)
 
     def defineIO(self):
         self.addInput(execType, "execin", "Execute in")
@@ -37,6 +46,9 @@ class TestBBNode(SimpleBlackbox):
 
         self.addOutput(execType, "execout", "Execute out")
         self.addOutput(str, "strout", "String in")
+
+    def lololol(self):
+        self.sendDataToImplementations("hi")
 
 
 

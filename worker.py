@@ -11,6 +11,12 @@ import glfw
 
 from moduleManager import searchModules
 
+from OpenGL.GL import *
+from OpenGL.GLU import *
+from OpenGL.arrays import *
+from OpenGL.GL import shaders
+import OpenGL
+
 ## ss -l -4
 
 
@@ -122,6 +128,8 @@ class WorkerHandler():
             self.passSheetDelta(decoded)
         elif type == "request":
             self.handleRequest(decoded)
+        elif type == "nodedata":
+            self.passNodedata(decoded)
 
     def passSheetDelta(self, msg):
         for worker in self.glfwWorkers.values():
@@ -131,6 +139,10 @@ class WorkerHandler():
         request = msg["request"]
         if request == "monitors":
             self.sendMonitorsReply(msg["msgid"])
+
+    def passNodedata(self, msg):
+        for worker in self.glfwWorkers.values():
+            worker.processNodedata(msg["nodeid"], msg["nodedata"])
 
     def handleControl(self, msg):
         command = msg["command"]
@@ -179,77 +191,97 @@ class glfwWorker:
         # --- Runtime variables
         self.state = "stop"
         self.time = glfw.get_time()
+        self.deltatime = 1
 
     def tick(self):
         self.time = glfw.get_time()
 
         if self.state == "play" and self.window is not None:
+            glfw.make_context_current(self.window)
+
+            glfw.poll_events()
+
+            glClearColor(0.2, 0.3, 0.3, 1.0)
+            glClear(GL_COLOR_BUFFER_BIT)
+
+            self.deltatime = glfw.get_time() - self.time
+            self.time = glfw.get_time()
+
             if self.currentSheet in self.sheetObjects:
                 if self.sheetLoopId in self.sheetObjects[self.currentSheet]:
                     self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
+
+            glfw.swap_buffers(self.window)
 
 
     def decodeSheetdelta(self, msg):
         sheetid = msg["sheet"]
         if not sheetid in self.sheetdata:
             self.sheetdata[int(sheetid)] = {}
-        for nodeid in msg["added"]:
-            self.sheetdata[int(sheetid)][int(nodeid)] = msg["added"][nodeid]
-        for nodeid in msg["changed"]:
-            self.sheetdata[int(sheetid)][int(nodeid)] = msg["changed"][nodeid]
-        for nodeid in msg["deleted"]:
-            del self.sheetdata[int(sheetid)][int(nodeid)]
-
-        self.updateSheetObjects()
+        if "synchronize" in msg:
+            self.sheetdata[int(sheetid)] = {}
+            for nodeid in msg["synchronize"]:
+                self.sheetdata[int(sheetid)][int(nodeid)] = msg["synchronize"][nodeid]
+        else:
+            for nodeid in msg["added"]:
+                self.sheetdata[int(sheetid)][int(nodeid)] = msg["added"][nodeid]
+            for nodeid in msg["changed"]:
+                self.sheetdata[int(sheetid)][int(nodeid)] = msg["changed"][nodeid]
+            for nodeid in msg["deleted"]:
+                del self.sheetdata[int(sheetid)][int(nodeid)]
+            self.updateSheetObjects()
 
     def updateSheetObjects(self, reset=False):
         if reset:   # Reset entire runtime, recreate all nodes
             self.sheetObjects = {}
 
-        self.availableModules = searchModules()
-        for sheetId in self.sheetdata:
-            if not sheetId in self.sheetObjects:
-                self.sheetObjects[sheetId] = {}
-            for nodeId in self.sheetdata[sheetId]:
-                if nodeId not in self.sheetObjects[sheetId]:    # Create new object from implementation class
-                    self.sheetObjects[sheetId][nodeId] = \
-                        self.availableModules[self.sheetdata[sheetId][nodeId]["modulename"]].implementation(
-                            self.sheetdata[sheetId][nodeId],
-                            nodeId,
-                            self)
-                else:   # Update nodeData in implementations
-                    self.sheetObjects[sheetId][nodeId].nodeData = self.sheetdata[sheetId][nodeId]
+        if self.state == "play":
+            self.availableModules = searchModules()
+            for sheetId in self.sheetdata:
+                if sheetId not in self.sheetObjects:
+                    self.sheetObjects[sheetId] = {}
+                for nodeId in self.sheetdata[sheetId]:
+                    if nodeId not in self.sheetObjects[sheetId]:    # Create new object from implementation class
+                        self.sheetObjects[sheetId][nodeId] = \
+                            self.availableModules[self.sheetdata[sheetId][nodeId]["modulename"]].implementation(
+                                self.sheetdata[sheetId][nodeId],
+                                nodeId,
+                                self)
+                    else:   # Update nodeData in implementations
+                        self.sheetObjects[sheetId][nodeId].nodeData = self.sheetdata[sheetId][nodeId]
 
 
-        for sheetId in self.sheetObjects:
-            dellist = []
-            for nodeId in self.sheetObjects[sheetId]:
-                nodeExists = False
-                for sheetId in self.sheetdata:
-                    if nodeId in self.sheetdata[sheetId]:
-                        nodeExists = True
-                if not nodeExists:
-                    dellist.append(nodeId)
-            for delid in dellist:
-                del self.sheetObjects[sheetId][delid]
+            for sheetId in self.sheetObjects:
+                dellist = []
+                for nodeId in self.sheetObjects[sheetId]:
+                    nodeExists = False
+                    for sheetId in self.sheetdata:
+                        if nodeId in self.sheetdata[sheetId]:
+                            nodeExists = True
+                    if not nodeExists:
+                        dellist.append(nodeId)
+                for delid in dellist:
+                    del self.sheetObjects[sheetId][delid]
 
-        if self.currentSheet:
-            for nodeId in self.sheetdata[self.currentSheet]:
-                if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetinit":
-                    self.sheetInitId = nodeId
-                if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
-                    self.sheetLoopId = nodeId
+            if self.currentSheet:
+                for nodeId in self.sheetdata[self.currentSheet]:
+                    if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetinit":
+                        self.sheetInitId = nodeId
+                    if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
+                        self.sheetLoopId = nodeId
 
     def createWindow(self):
         self.videomode = glfw.get_video_mode(self.monitor)
         #self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", self.monitor, None)    # Fullscreen
-        self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", None, None) # windowed
+        self.window = glfw.create_window(500, 500, "Pyree Worker （´・ω・ `)", None, None) # windowed
 
         #glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+
+        glfw.make_context_current(self.window)
 
     def closeWindow(self):
         glfw.destroy_window(self.window)
@@ -262,16 +294,26 @@ class glfwWorker:
                 self.state = "play"
             elif self.state == "stop":
                 self.createWindow()
-                self.updateSheetObjects(reset=True)
                 self.state = "play"
+                self.updateSheetObjects(reset=True)
         elif command == "pause":
             self.state = "pause"
         elif command == "stop":
             self.closeWindow()
+            self.sheetObjects = {}
             self.state = "stop"
         elif command == "setsheet":
             self.currentSheet = sheetid
             self.updateSheetObjects(reset=True)
+        elif command == "resetsheets":
+            self.sheetdata = {}
+
+    def processNodedata(self, nodeid, data):
+        for sheetId in self.sheetObjects:
+            for nodeId in self.sheetObjects[sheetId]:
+                if nodeId == nodeid:
+                    object = self.sheetObjects[sheetId][nodeId]
+                    object.receiveNodedata(data)
 
 if __name__ == "__main__":
     if not glfw.init():
@@ -283,6 +325,6 @@ if __name__ == "__main__":
     while 1:    # Limit framerate to 100 frames TODO: Make adjustable
         dt = glfw.get_time() - gtime
         wh.run()
-        time.sleep(max(0.1 - dt, 0))
+        time.sleep(max(0.01 - dt, 0))
         gtime = glfw.get_time()
 

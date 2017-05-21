@@ -43,9 +43,12 @@ def searchModules():
     return foundModules
 
 class ModulePickerDialog(QDialog, NodeSceneModuleManager):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, sendMessageCallback, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
         NodeSceneModuleManager.__init__(self)
+
+        self.sendMessageCallback = sendMessageCallback  # FIXME: Fix this hack, this shouldn't done in the modulepicker
+                                                        # Instead, try to find out when a new node is created to pass this callback.
 
         self.scene = None
 
@@ -82,6 +85,7 @@ class ModulePickerDialog(QDialog, NodeSceneModuleManager):
             if selectedItem.data(1, Qt.UserRole) in self.availableNodes:
                 classToSpawn = self.availableNodes[selectedItem.data(1, Qt.UserRole)]
                 newNode = classToSpawn()
+                newNode.sendMessageCallback = self.sendMessageCallback
 
                 if self.scene is not None:
                     self.scene.undostack.push(AddNodeToSceneCommand(newNode, position, self.scene))

@@ -6,7 +6,7 @@ Main communication happens by exchanging json objects via TCP. Every object must
 
 #### `msgid (int)`
 Unique message ID generated with the python 3 [uuid library](https://docs.python.org/3/library/uuid.html#uuid.uuid4), and then [converted](https://docs.python.org/3/library/uuid.html#uuid.UUID.int) to an integer.  
-It is used to correspond a reply to an initial request.+
+It is used to correspond a reply to an initial request.
 
 #### `msgtype (string)`
 The type of message this is. Depending on the type of the message, it gets decoded differently.
@@ -35,6 +35,8 @@ The command that the worker is meant to obey. It can be one of the following:
   Halt execution, close GLFW window and delete all objects.
 * `setsheet`
   Set the main running sheet to the given sheet (requires that the sheet field is given as well!)
+* `resetsheet`
+  Delete all sheetdata in preparation for upcoming synchronization
 
 #### `sheet (int)`
 ID of sheet that is to be the new execution sheet with `setsheet` command
@@ -48,8 +50,10 @@ ID of the sheet that this delta is applying to.
 Object containing all nodes that have been newly added to a sheet.
 #### `changedNodes (object)`
 Object containing all nodes that have changed on a sheet.
-#### `removedNodes(object)`
+#### `removedNodes (object)`
 Object containing all nodes that have been removed from a sheet.
+#### `synchronize (object)`
+If this key exists, all other data is to be ignored and this is to be set as the current absolute state. This is especially used on reconnects.
 
 ### `request`
 This kind of message represents a request for data by the controller to the worker.
@@ -72,12 +76,20 @@ The msgid of the request to which this is a reply to.
 #### `replydata (object)`
 Request data or information. The contents depend on the request type.
 
-## UDP Broadcast
+### `nodedata`
+Nodes can directly send data to all existing node implementations. An example use of this would be a slider being moved, resulting in the value needing updating in all implementations.
+
+#### `nodeid (int)`
+Node id of sending node.
+
+#### `nodedata (object)`
+The data that will be passed on to the implementation.
+
+# UDP Broadcast
 UDP Broadcast is used exclusively to discover new workers in the network. It has the following keys:
 
-#### `ip (string)`
+### `ip (string)`
 IP address of the broadcasting entity
-#### `port (int)`
+### `port (int)`
 Port on which the tcp socket is listening
-
 

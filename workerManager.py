@@ -43,10 +43,12 @@ class WorkerManager():
                     treeItem = QTreeWidgetItem(1001)    # Type 1000 for Worker Item
                     treeItem.setText(0, name)
                     self.treeWidget.addTopLevelItem(treeItem)
-                    self.workers[name] = Worker(discoverydata, treeItem)
                     self.grabPeriodicInfos()    # Grab monitor data
+                    self.workers[name] = Worker(discoverydata, treeItem)
+                    self.workers[name].tick(self.sheetDeltaMemory)
+                    self.workers[name].synchronize()
 
-    def sheetChangeHook(self, sheet):
+    def sheetChangeHook(self, sheet):   # TODO: Move this to individual workers!
         """A hook called when a sheet changes.
 
         A sheet change is detected by an index change of the undo-stack, as every sheet-changing action gets pushed onto it."""
@@ -89,7 +91,7 @@ class WorkerManager():
         self.discoverWorkers()
 
         for worker in self.workers.values():
-            worker.tick()
+            worker.tick(self.sheetDeltaMemory)
 
         self.infograbberCounter += 1
         if self.infograbberCounter >= 100:  # TODO: Maybe make this a timer
@@ -110,6 +112,11 @@ class WorkerManager():
                 parent = item.parent()
                 worker = self.workers[parent.text(0)]
                 worker.monitorPlayControls(item.text(0), control, selectedsheet)
+
+    def sendNodedataToAll(self, nodeid, data):
+        print("hi")
+        for worker in self.workers.values():
+            worker.sendNodedata(nodeid, data)
 
     def __del__(self):
         self.discoverysocket.close()
@@ -140,6 +147,8 @@ class Worker():
 
         self.messageJar = {}    # Store messages if a response is expected
 
+        self.sheetData = {}     # The sheet state the worker should currently have
+
         # --- Worker
         self.monitors = []
         self.monitorState = {}
@@ -152,25 +161,35 @@ class Worker():
         self.treeItem.setIcon(0, self.workerOkIcon)
 
 
-    def tick(self):
+
+
+    def tick(self, sheetData):
+        self.sheetData = sheetData
+
         if self.tcpsock is not None and self.valid:
             wlist = []
             if self.outBuf:
                 wlist.append(self.tcpsock)
-            rlist,wlist,elist = select([self.tcpsock], wlist, [], 0)
+            rlist,wlist,elist = select([self.tcpsock], wlist, [self.tcpsock], 0)
+            if elist:
+                self.handleLostConnection()
             if rlist:
-                recvbuf = self.tcpsock.recv(4096)
-                if len(recvbuf) == 0:
-                    self.handleLostConnection()
                 try:
-                    self.inBuf += bytes.decode(recvbuf)
-                except UnicodeDecodeError:
-                    print("-------------\nReceived garbled unicode: %s\n-------------" % recvbuf)
-                self.parseInbuf()
+                    recvbuf = self.tcpsock.recv(4096)
+                    try:
+                        self.inBuf += bytes.decode(recvbuf)
+                    except UnicodeDecodeError:
+                        print("-------------\nReceived garbled unicode: %s\n-------------" % recvbuf)
+                    self.parseInbuf()
+                except ConnectionResetError:
+                    self.handleLostConnection()
 
             if wlist:
-                sent = self.tcpsock.send(str.encode(self.outBuf))
-                self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
+                try:
+                    sent = self.tcpsock.send(str.encode(self.outBuf))
+                    self.outBuf = self.outBuf[sent:]    # Only store part of string that wasn't sent yet
+                except BrokenPipeError:
+                    self.handleLostConnection()
         else:
             self.handleLostConnection()
 
@@ -184,9 +203,35 @@ class Worker():
         try:
             self.tcpsock.connect((self.ip, self.port))
             self.valid = True
+            self.synchronize()
             self.treeItem.setIcon(0, self.workerOkIcon)
         except ConnectionRefusedError:
             pass
+
+    def synchronize(self):
+        # Synchronize sheet data
+        for monitor in self.monitorState:
+            self.monitorPlayControls(monitor, "resetsheets")
+        for sheetId in self.sheetData:
+            sheet = self.sheetData[sheetId]
+            sheetSync = {}
+            for nodeId in self.sheetData[sheetId]:
+                if nodeId in sheet:  # Node exists in current version, but not in memory
+                    sheetSync[nodeId] = sheet[nodeId]
+
+            msg = {}
+            msg["msgid"] = uuid.uuid4().int
+            msg["msgtype"] = "sheetdelta"
+
+            msg["sheet"] = sheetId
+            msg["synchronize"] = sheetSync
+
+            self.sendMessage(msg)
+
+        # Synchronize current sheet
+        for monitor in self.monitorState:
+            if self.monitorState[monitor]["sheet"] is not None:
+                self.monitorPlayControls(monitor, "setsheet", self.monitorState[monitor]["sheet"])
 
     def sendMessage(self, msg):
         self.outBuf += json.dumps(msg) + "\n"
@@ -267,6 +312,11 @@ class Worker():
         msg["command"] = command
         if sheetid is not None:
             msg["sheetid"] = sheetid
+            if monitor == "all":
+                for monitor in self.monitorState:
+                    self.monitorState[monitor]["sheet"] = sheetid
+            else:
+                self.monitorState[monitor]["sheet"] = sheetid
 
         # Catch trying to send a setsheet command without a sheet
         if not (sheetid is None and command == "setsheet"):
@@ -279,6 +329,15 @@ class Worker():
                     monitorstate["state"] = state
             elif monitor in self.monitorState:
                 self.monitorState[monitor]["state"] = state
+
+    def sendNodedata(self, nodeid, data):
+        msg = {}
+        msg["id"] = uuid.uuid4().int
+        msg["msgtype"] = "nodedata"
+        msg["nodeid"] = nodeid
+        msg["nodedata"] = data
+
+        self.sendMessage(msg)
 
     def __del__(self):
         self.tcpsock.close()

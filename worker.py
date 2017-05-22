@@ -193,6 +193,11 @@ class glfwWorker:
         self.time = glfw.get_time()
         self.deltatime = 1
 
+
+
+    def framebufferSizeCallback(self, window, width, height):
+        glViewport(0, 0, width, height)
+
     def tick(self):
         self.time = glfw.get_time()
 
@@ -282,6 +287,8 @@ class glfwWorker:
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
         glfw.make_context_current(self.window)
+
+        glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
 
     def closeWindow(self):
         glfw.destroy_window(self.window)

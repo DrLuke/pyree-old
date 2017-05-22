@@ -43,12 +43,23 @@ class BaseImplementation():
         """Gets called on creation by the runtime"""
         pass
 
+    def __del__(self):
+        self.delete()
+
+    def delete(self):
+        """Gets called on deletion by runtime"""
+        pass
+
+    def receiveNodedata(self, data):
+        pass
+
     def defineIO(self):
         """Here you define the functions that get linked to IOs"""
         raise NotImplementedError("This method must be implemented in derived class")
 
     def getIOFunction(self, id):
         """Return the function associated with a node io"""
+
         try:
             return self.ioIdFuncs[id]
         except KeyError:
@@ -68,10 +79,35 @@ class BaseImplementation():
                 functions.append(self.runtime.sheetObjects[self.runtime.currentSheet][link[3]].getIOFunction(link[1]))
             elif link[1] == ioid:
                 functions.append(self.runtime.sheetObjects[self.runtime.currentSheet][link[2]].getIOFunction(link[0]))
-        return functions
+        return [x for x in functions if x is not None]
 
+    def getReturnOfFirstFunction(self, name):
+        funcs = self.getLinkedFunctions(name)
+        if funcs:
+            return funcs[0]()
+        else:
+            return None
 
-class SimpleBlackbox(QNodeSceneNode):
+    def fireExec(self, name):
+        self.getReturnOfFirstFunction(name)
+
+class PyreeNode(QNodeSceneNode):
+    """Base node that implements some functionality specific to Pyree"""
+    def __init__(self, *args, **kwargs):
+        super(PyreeNode, self).__init__(*args, **kwargs)
+
+        self.sendMessageCallback = None
+
+    def sendDataToImplementations(self, msg):
+        """Send a message to all implementations with the same id as this node"""
+        if self.sendMessageCallback is not None:
+            self.sendMessageCallback(self.id, msg)
+
+    def getPropertiesWidget(self):
+        """A widget to be shown in the dockable 'properties' widget."""
+        return None
+
+class SimpleBlackbox(PyreeNode):
     """Blackbox node template with inputs on the left and outputs on the right"""
     # Here we define some information about the node
     author = "DrLuke"  # Author of this node (only used for namespacing, never visible to users)

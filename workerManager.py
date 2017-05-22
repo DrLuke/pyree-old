@@ -114,7 +114,6 @@ class WorkerManager():
                 worker.monitorPlayControls(item.text(0), control, selectedsheet)
 
     def sendNodedataToAll(self, nodeid, data):
-        print("hi")
         for worker in self.workers.values():
             worker.sendNodedata(nodeid, data)
 

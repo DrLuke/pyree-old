@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem, QFileDialog
+from PyQt5.QtWidgets import QMainWindow, QApplication, QListWidgetItem, QFileDialog, QDockWidget
 from PyQt5.QtCore import Qt, QMimeData, QMimeType, QTimer, QPointF
 from PyQt5.QtGui import QIcon
 from gui.PyreeMainWindow import Ui_PyreeMainWindow
@@ -21,15 +21,18 @@ class Sheet():
     """Sheet manager
 
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
-    def __init__(self, listItem:QListWidgetItem, sendMessageCallback, data=None):
+    def __init__(self, listItem:QListWidgetItem, propertiesDockWidget:QDockWidget, sendMessageCallback, data=None):
         self.scene = QNodeScene(ModulePickerDialog(sendMessageCallback))
         self.view = QNodeView()
         self.view.setScene(self.scene)
         self.scene.setSceneRect(-2500, -2500, 5000, 5000)   # TODO: Make this less shitty
         self.listItem = listItem
         self.id = self.listItem.data(Qt.UserRole)   # Get ID from the listitem
+        self.dockWidget = propertiesDockWidget
 
         self.availableModules = searchModules()
+
+        self.scene.selectionChanged.connect(self.sceneSelectionChanged)
 
         # --- Pass scene changes
         self.sceneUndoStackIndexChangedCallback = None
@@ -97,6 +100,19 @@ class Sheet():
         if issubclass(type(self.sceneUndoStackIndexChangedCallback), MethodType):
             self.sceneUndoStackIndexChangedCallback(self)
 
+    def sceneSelectionChanged(self):
+        selection = self.scene.selectedItems()
+        if len(selection) == 1:
+            if issubclass(type(selection[0]), PyreeNode):
+                propertiesWidget = selection[0].getPropertiesWidget()
+                if propertiesWidget is not None:
+                    propertiesWidget.show()
+                    self.dockWidget.setWidget(propertiesWidget)
+                else:
+                    self.dockWidget.takeWidget()    # Remove Widget
+        else:
+            self.dockWidget.takeWidget()    # Remove Widget
+
 class PyreeProject():
     """Pyree Project
 
@@ -148,7 +164,7 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
-        newSheet = Sheet(listItem, self.workerManager.sendNodedataToAll, data)
+        newSheet = Sheet(listItem, self.ui.propertiesScrollArea, self.workerManager.sendNodedataToAll, data)
         self.sheets[listItem.data(Qt.UserRole)] = newSheet  # Add sheet to list of sheets
         newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
         self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state

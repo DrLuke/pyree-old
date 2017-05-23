@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt
 from gui.ModulePickerDialog import Ui_Dialog
 from effigy.QNodeScene import NodeSceneModuleManager
 
-from baseModule import initNode, loopNode
+from baseModule import InitNode, LoopNode, SubSheet
 
 class AddNodeToSceneCommand(QUndoCommand):
     def __init__(self, node, position, scene, *args, **kwargs):
@@ -38,8 +38,9 @@ def searchModules():
             # Then import all modules from project folder
             # TODO: Implement
 
-    foundModules["sheetinit"] = initNode
-    foundModules["sheetloop"] = loopNode
+    foundModules["sheetinit"] = InitNode
+    foundModules["sheetloop"] = LoopNode
+    foundModules["subsheet"] = SubSheet
     return foundModules
 
 class ModulePickerDialog(QDialog, NodeSceneModuleManager):

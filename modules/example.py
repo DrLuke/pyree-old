@@ -14,6 +14,7 @@ class testImplementation(BaseImplementation):
 
     def receiveNodedata(self, data):
         self.value = data
+        print(data)
 
 class TestBBNode(SimpleBlackbox):
 
@@ -36,7 +37,7 @@ class TestBBNode(SimpleBlackbox):
         self.toggle.toggled.connect(self.toggleTrueFalse)
 
         self.vlayout.addWidget(self.toggle)
-        self.vlayout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.vlayout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
         self.propertiesWidget.setLayout(self.vlayout)
 

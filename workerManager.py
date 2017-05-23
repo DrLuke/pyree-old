@@ -23,12 +23,15 @@ class WorkerManager():
 
         self.infograbberCounter = 0
 
+        self.nodeDataJar = {}
+
 
     def discoverWorkers(self):
         """Discover new workers via udp broadcasts"""
         rlist, wlist, elist = select([self.discoverysocket], [], [], 0)
         if rlist:
             received = self.discoverysocket.recvfrom(4096)[0]
+            discoverydata = {}
             try:
                 discoverydata = json.loads(bytes.decode(received))
             except json.JSONDecodeError:
@@ -44,7 +47,7 @@ class WorkerManager():
                     treeItem.setText(0, name)
                     self.treeWidget.addTopLevelItem(treeItem)
                     self.grabPeriodicInfos()    # Grab monitor data
-                    self.workers[name] = Worker(discoverydata, treeItem)
+                    self.workers[name] = Worker(discoverydata, treeItem, nodeDataJar=self.nodeDataJar)
                     self.workers[name].tick(self.sheetDeltaMemory)
                     self.workers[name].synchronize()
 
@@ -114,8 +117,12 @@ class WorkerManager():
                 worker.monitorPlayControls(item.text(0), control, selectedsheet)
 
     def sendNodedataToAll(self, nodeid, data):
+        self.nodeDataJar[nodeid] = data
         for worker in self.workers.values():
             worker.sendNodedata(nodeid, data)
+
+    def killAll(self):
+        self.workers = {}
 
     def __del__(self):
         self.discoverysocket.close()
@@ -124,7 +131,7 @@ class Worker():
     """Represents a single worker.
 
     The Worker class contains all open sockets and represents the worker inside the controller"""
-    def __init__(self, connectiondata, treeItem):
+    def __init__(self, connectiondata, treeItem, nodeDataJar={}):
         self.treeItem = treeItem
         # --- Networking
         self.connectiondata = connectiondata
@@ -145,6 +152,7 @@ class Worker():
         self.inBuf = ""
 
         self.messageJar = {}    # Store messages if a response is expected
+        self.nodedataJar = nodeDataJar   # Stored nodedata messages to be resent on synchronization
 
         self.sheetData = {}     # The sheet state the worker should currently have
 
@@ -231,6 +239,9 @@ class Worker():
         for monitor in self.monitorState:
             if self.monitorState[monitor]["sheet"] is not None:
                 self.monitorPlayControls(monitor, "setsheet", self.monitorState[monitor]["sheet"])
+
+        for nodeId in self.nodedataJar:
+            self.sendNodedata(nodeId, self.nodedataJar[nodeId])
 
     def sendMessage(self, msg):
         self.outBuf += json.dumps(msg) + "\n"
@@ -337,6 +348,8 @@ class Worker():
         msg["nodedata"] = data
 
         self.sendMessage(msg)
+
+        self.nodedataJar[nodeid] = data
 
     def __del__(self):
         self.tcpsock.close()

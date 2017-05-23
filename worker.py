@@ -116,6 +116,7 @@ class WorkerHandler():
         self.outbuf += json.dumps(msg) + "\n"
 
     def parseMessage(self, msg):
+        print(msg)
         try:
             decoded = json.loads(msg)
         except json.JSONDecodeError:
@@ -183,6 +184,8 @@ class glfwWorker:
         self.availableModules = {}
         self.sheetdata = {}
         self.sheetObjects = {}
+
+        self.nodedataJar = {}
 
         self.currentSheet = None
         self.sheetInitId = None
@@ -252,28 +255,43 @@ class glfwWorker:
                                 self.sheetdata[sheetId][nodeId],
                                 nodeId,
                                 self)
+
                     else:   # Update nodeData in implementations
                         self.sheetObjects[sheetId][nodeId].nodeData = self.sheetdata[sheetId][nodeId]
-
 
             for sheetId in self.sheetObjects:
                 dellist = []
                 for nodeId in self.sheetObjects[sheetId]:
                     nodeExists = False
-                    for sheetId in self.sheetdata:
-                        if nodeId in self.sheetdata[sheetId]:
+                    for sheetIdInner in self.sheetdata:
+                        if nodeId in self.sheetdata[sheetIdInner]:
                             nodeExists = True
                     if not nodeExists:
                         dellist.append(nodeId)
                 for delid in dellist:
                     del self.sheetObjects[sheetId][delid]
 
-            if self.currentSheet:
+            for sheetId in self.sheetdata:
+                for nodeId in self.sheetdata[sheetId]:
+                    if self.sheetdata[sheetId][nodeId]["modulename"] == "subsheet":
+                        if nodeId in self.nodedataJar:
+                            self.sheetObjects[sheetId][nodeId].receiveNodedata(self.nodedataJar[nodeId])
+                        self.sheetObjects[sheetId][nodeId].updateSubsheetRuntime()
+
+            if self.currentSheet in self.sheetdata:
                 for nodeId in self.sheetdata[self.currentSheet]:
                     if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetinit":
                         self.sheetInitId = nodeId
                     if self.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
                         self.sheetLoopId = nodeId
+
+                if self.sheetInitId is not None:    # Fire init node
+                    self.sheetObjects[self.currentSheet][self.sheetInitId].fireExecOut()
+
+        if reset:
+            jarcopy = self.nodedataJar
+            for nodeId in jarcopy:
+                self.processNodedata(nodeId, jarcopy[nodeId])
 
     def createWindow(self):
         self.videomode = glfw.get_video_mode(self.monitor)
@@ -316,11 +334,17 @@ class glfwWorker:
             self.sheetdata = {}
 
     def processNodedata(self, nodeid, data):
+        self.nodedataJar[nodeid] = data
+
         for sheetId in self.sheetObjects:
             for nodeId in self.sheetObjects[sheetId]:
                 if nodeId == nodeid:
                     object = self.sheetObjects[sheetId][nodeId]
                     object.receiveNodedata(data)
+                if nodeId in self.sheetdata[sheetId]:
+                    if self.sheetdata[sheetId][nodeId]["modulename"] == "subsheet":
+                        self.sheetObjects[sheetId][nodeId].passNodeData(nodeid, data)
+
 
 if __name__ == "__main__":
     if not glfw.init():

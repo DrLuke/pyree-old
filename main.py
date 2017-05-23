@@ -10,7 +10,7 @@ from effigy.QNodeSceneNode import QNodeSceneNode
 from moduleManager import ModulePickerDialog, searchModules, AddNodeToSceneCommand
 from workerManager import WorkerManager
 
-from baseModule import initNode, loopNode, PyreeNode
+from baseModule import InitNode, LoopNode, PyreeNode, SubSheet
 
 import sys, os
 import uuid
@@ -22,6 +22,7 @@ class Sheet():
 
     Represents one sheet. Manages the QNodeScene and (de-)serialization."""
     def __init__(self, listItem:QListWidgetItem, propertiesDockWidget:QDockWidget, sendMessageCallback, data=None):
+        self.sendMessageCallback = sendMessageCallback
         self.scene = QNodeScene(ModulePickerDialog(sendMessageCallback))
         self.view = QNodeView()
         self.view.setScene(self.scene)
@@ -34,6 +35,8 @@ class Sheet():
 
         self.scene.selectionChanged.connect(self.sceneSelectionChanged)
 
+        self.sheetMap = {}  # key: sheetid, value: sheetname   special thing for subsheets so you can pick a subsheet. FIXME: Make this less special-casey
+
         # --- Pass scene changes
         self.sceneUndoStackIndexChangedCallback = None
         self.scene.undostack.indexChanged.connect(self.sceneUndoStackIndexChanged)
@@ -43,9 +46,9 @@ class Sheet():
         if data is not None:
             self.deserialize(data)
         else:
-            self.initnode = initNode()
+            self.initnode = InitNode()
             self.scene.addItem(self.initnode)
-            self.loopnode = loopNode()
+            self.loopnode = LoopNode()
             self.scene.addItem(self.loopnode)
             self.loopnode.setPos(QPointF(0, 100))
 
@@ -57,6 +60,7 @@ class Sheet():
         nodes = [x for x in self.scene.items() if issubclass(type(x), QNodeSceneNode)]  # Get all nodes in scene
 
         data["name"] = self.name
+        data["uuid"] = self.id
 
         data["nodes"] = {}
         for node in nodes:
@@ -75,8 +79,15 @@ class Sheet():
                 continue
 
             newNode = newNodeClass(setID=nodedata["uuid"])
+            newNode.sendMessageCallback = self.sendMessageCallback
             self.scene.addItem(newNode)
             newNode.deserializeinternal(nodedata)
+
+        items = [x for x in self.scene.items() if issubclass(type(x), SubSheet)]  # FIXME: HACK! Replace me with more elegant solution
+        for subsheet in items:
+            subsheet.ownsheet = self.id
+            subsheet.sheets = self.sheetMap
+            subsheet.updateSheets()
 
     def serializeLinksOnly(self):
         nodes = [x for x in self.scene.items() if issubclass(type(x), QNodeSceneNode)]  # TODO: Does this cause performance issues on large sheets?
@@ -100,18 +111,38 @@ class Sheet():
         if issubclass(type(self.sceneUndoStackIndexChangedCallback), MethodType):
             self.sceneUndoStackIndexChangedCallback(self)
 
+        items = [x for x in self.scene.items() if issubclass(type(x), SubSheet)]    # FIXME: HACK! Replace me with more elegant solution
+        for subsheet in items:
+            subsheet.ownsheet = self.id
+            subsheet.sheets = self.sheetMap
+            subsheet.updateSheets()
+
     def sceneSelectionChanged(self):
         selection = self.scene.selectedItems()
         if len(selection) == 1:
             if issubclass(type(selection[0]), PyreeNode):
                 propertiesWidget = selection[0].getPropertiesWidget()
                 if propertiesWidget is not None:
-                    propertiesWidget.show()
+                    self.dockWidget.takeWidget()  # Remove previous Widget
                     self.dockWidget.setWidget(propertiesWidget)
+                    propertiesWidget.show()
                 else:
                     self.dockWidget.takeWidget()    # Remove Widget
         else:
             self.dockWidget.takeWidget()    # Remove Widget
+
+    def sheetsChanged(self, sheets):
+        self.sheetMap = {}
+
+        for sheetId in sheets:
+            self.sheetMap[sheetId] = sheets[sheetId].name
+
+        items = [x for x in self.scene.items() if
+                 issubclass(type(x), SubSheet)]  # FIXME: HACK! Replace me with more elegant solution
+        for subsheet in items:
+            subsheet.ownsheet = self.id
+            subsheet.sheets = self.sheetMap
+            subsheet.updateSheets()
 
 class PyreeProject():
     """Pyree Project
@@ -144,7 +175,8 @@ class PyreeProject():
 
         for sheetdata in data["sheets"]:
             newTreeItem = QListWidgetItem(sheetdata["name"], self.ui.sheetListWidget)
-            newTreeItem.setData(Qt.UserRole, uuid.uuid4().int)  # Add some uniquely identifying data to make it hashable
+            newTreeItem.setData(Qt.UserRole, sheetdata["uuid"])  # Add some uniquely identifying data to make it hashable
+
 
             self.newSheet(newTreeItem, sheetdata)
 
@@ -164,10 +196,14 @@ class PyreeProject():
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""
+        listItem.setToolTip(str(listItem.data(Qt.UserRole)))
         newSheet = Sheet(listItem, self.ui.propertiesScrollArea, self.workerManager.sendNodedataToAll, data)
         self.sheets[listItem.data(Qt.UserRole)] = newSheet  # Add sheet to list of sheets
         newSheet.sceneUndoStackIndexChangedCallback = self.workerManager.sheetChangeHook    # Set change-hook
         self.workerManager.sheetChangeHook(newSheet)    # Call hook once manually to set up initial state
+
+        for sheet in self.sheets.values():
+            sheet.sheetsChanged(self.sheets)
 
     def getFirstSelectedSheetId(self):
         selected = self.ui.sheetListWidget.selectedItems()
@@ -237,6 +273,8 @@ class PyreeMainWindow(QMainWindow):
         self.ui.sheetListWidget.clear()
         self.ui.workersTreeWidget.clear()
 
+        if self.currentProject is not None:
+            self.currentProject.workerManager.killAll()
         self.currentProject = PyreeProject(self.ui, filePath=filePath)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.currentProject.workerManager.tick)

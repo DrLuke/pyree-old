@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
 from PyQt5.QtCore import QRectF, QPointF, Qt
 from PyQt5.QtGui import QPen, QColor, QBrush, QFont
 
+from PyQt5.QtWidgets import QWidget, QListWidget, QListWidgetItem, QSpacerItem, QVBoxLayout, QSizePolicy
+
 class execType:
     """typedef for exec-pins"""
     pass
@@ -200,6 +202,7 @@ class SimpleBlackbox(PyreeNode):
         titleFont = QFont()
         titleFont.setBold(True)
         self.nodeTitle.setFont(titleFont)
+        self.selectedChanged(self.isSelected())
 
     def selectedChanged(self, state):
         if state:
@@ -214,7 +217,7 @@ class SimpleBlackbox(PyreeNode):
         pass
 
 
-class singleExecoutImplementation(BaseImplementation):
+class SingleExecoutImplementation(BaseImplementation):
     def defineIO(self):
         self.registerFunc("execOut", self.fireExecOut)
 
@@ -224,7 +227,7 @@ class singleExecoutImplementation(BaseImplementation):
             if func is not None:
                 func()
 
-class initNode(SimpleBlackbox, QNodeSceneNodeUndeletable):
+class InitNode(SimpleBlackbox, QNodeSceneNodeUndeletable):
     """Blackbox node template with inputs on the left and outputs on the right"""
     # Here we define some information about the node
     author = "DrLuke"  # Author of this node (only used for namespacing, never visible to users)
@@ -238,12 +241,12 @@ class initNode(SimpleBlackbox, QNodeSceneNodeUndeletable):
     description = """Node that gets executed once on sheet initialization."""
 
     # Class implementing this node.
-    implementation = singleExecoutImplementation
+    implementation = SingleExecoutImplementation
 
     def defineIO(self):
         self.addOutput(execType, "execOut", "Init")
 
-class loopNode(initNode):
+class LoopNode(InitNode):
     modulename = "sheetloop"
     name = "Loop"
 
@@ -251,3 +254,161 @@ class loopNode(initNode):
         self.addOutput(execType, "execOut", "Loop")
 
     description = """Starting point for looping through sheet every frame"""
+
+class SubSheetImplementation(BaseImplementation):
+    def defineIO(self):
+        self.registerFunc("execInit", self.execInit)
+        self.registerFunc("execLoop", self.execLoop)
+
+    def receiveNodedata(self, data):
+        if "subsheetid" in data:
+            if not self.currentSheet == data["subsheetid"]:
+                self.currentSheet = data["subsheetid"]
+                self.updateSubsheetRuntime()
+
+    def __init__(self, *args, **kwargs):
+        self.sheetObjects = {}
+        self.sheetInitId = None
+        self.sheetLoopId = None
+        self.currentSheet = None
+
+        super(SubSheetImplementation, self).__init__(*args, **kwargs)
+
+    def updateSubsheetRuntime(self):
+        if self.currentSheet is not None and self.currentSheet in self.runtime.sheetdata:
+            self.availableModules = self.runtime.availableModules
+            sheetId = self.currentSheet
+            if sheetId not in self.sheetObjects:
+                self.sheetObjects[sheetId] = {}
+            for nodeId in self.runtime.sheetdata[sheetId]:
+                if nodeId not in self.sheetObjects[sheetId]:    # Create new object from implementation class
+                    self.sheetObjects[sheetId][nodeId] = \
+                        self.availableModules[self.runtime.sheetdata[sheetId][nodeId]["modulename"]].implementation(
+                            self.runtime.sheetdata[sheetId][nodeId],
+                            nodeId,
+                            self)
+                else:   # Update nodeData in implementations
+                    self.sheetObjects[sheetId][nodeId].nodeData = self.runtime.sheetdata[sheetId][nodeId]
+
+            for sheetId in self.sheetObjects:
+                dellist = []
+                for nodeId in self.sheetObjects[sheetId]:
+                    nodeExists = False
+                    for sheetId in self.runtime.sheetdata:
+                        if nodeId in self.runtime.sheetdata[sheetId]:
+                            nodeExists = True
+                    if not nodeExists:
+                        dellist.append(nodeId)
+                for delid in dellist:
+                    del self.sheetObjects[sheetId][delid]
+
+            if self.currentSheet:
+                self.sheetInitId = None
+                self.sheetLoopId = None
+                for nodeId in self.runtime.sheetdata[self.currentSheet]:
+                    if self.runtime.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetinit":
+                        self.sheetInitId = nodeId
+                    if self.runtime.sheetdata[self.currentSheet][nodeId]["modulename"] == "sheetloop":
+                        self.sheetLoopId = nodeId
+
+    def passNodeData(self, nodeid, data):
+        for sheetId in self.sheetObjects:
+            for nodeId in self.sheetObjects[sheetId]:
+                if nodeId == nodeid:
+                    object = self.sheetObjects[sheetId][nodeId]
+                    object.receiveNodedata(data)
+
+    def execInit(self):
+        if self.sheetInitId is not None and self.currentSheet is not None:
+            self.sheetObjects[self.currentSheet][self.sheetInitId].fireExecOut()
+
+    def execLoop(self):
+        if self.sheetLoopId is not None and self.currentSheet is not None:
+            self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
+
+
+class SubSheet(SimpleBlackbox):
+    author = "DrLuke"
+    name = "Subsheet"
+    modulename = "subsheet"
+
+    Category = ["Builtin"]
+
+    placeable = True
+
+    implementation = SubSheetImplementation
+
+    def __init__(self, *args, **kwargs):
+        self.ownsheet = None
+        self.sheets = None
+        self.selectedSheet = None
+        self.listSheetItems = {}
+
+        super(SubSheet, self).__init__(*args, **kwargs)
+
+        self.propertiesWidget = QWidget()
+
+        self.vlayout = QVBoxLayout()
+
+        self.listWidget = QListWidget()
+        self.listWidget.itemClicked.connect(self.listClicked)
+        self.vlayout.addWidget(self.listWidget)
+
+        self.vlayout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        self.propertiesWidget.setLayout(self.vlayout)
+
+    def getPropertiesWidget(self):
+        return self.propertiesWidget
+
+    def updateSheets(self):
+        if self.sheets is not None and self.ownsheet is not None:
+            self.listSheetItems = {}
+            self.listWidget.clear()
+            for sheetId in self.sheets:
+                if not sheetId == self.ownsheet:
+                    newItem = QListWidgetItem(self.sheets[sheetId])
+                    newItem.setToolTip(str(sheetId))
+                    newItem.setData(Qt.UserRole, sheetId)
+                    self.listSheetItems[sheetId] = newItem
+                    self.listWidget.addItem(newItem)
+
+                    if sheetId == self.selectedSheet:
+                        boldFont = QFont()
+                        boldFont.setBold(True)
+                        newItem.setFont(boldFont)
+
+    def listClicked(self, item):
+        normalFont = QFont()
+        boldFont = QFont()
+        boldFont.setBold(True)
+
+        for i in range(self.listWidget.count()):
+            itemnormal = self.listWidget.item(i)
+            itemnormal.setFont(normalFont)
+
+        self.selectedSheet = item.data(Qt.UserRole)
+        self.sendDataToImplementations({"subsheetid": self.selectedSheet})
+        item.setFont(boldFont)
+
+    def serialize(self):
+        return {"subsheetid": self.selectedSheet}
+
+    def deserialize(self, data):
+        if data is not None:
+            if "subsheetid" in data:
+                self.selectedSheet = data["subsheetid"]
+                self.sendDataToImplementations({"subsheetid": self.selectedSheet})
+
+    def selectedChanged(self, state):
+        if state:
+            self.mainRect.setPen(QPen(Qt.red))
+        else:
+            self.mainRect.setPen(QPen(Qt.blue))
+
+    def defineIO(self):
+        self.addInput(execType, "execInit", "Execute Init")
+        self.addInput(execType, "execLoop", "Execute Loop")
+
+        self.addOutput(execType, "ExecInitOut", "Init Done")
+        self.addOutput(execType, "ExecLoopOut", "Loop Done")

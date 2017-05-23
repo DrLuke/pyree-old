@@ -136,7 +136,7 @@ class Ui_PyreeMainWindow(object):
         self.propertiesScrollArea.setWidgetResizable(True)
         self.propertiesScrollArea.setObjectName("propertiesScrollArea")
         self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 68, 552))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 121, 552))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.propertiesScrollArea.setWidget(self.scrollAreaWidgetContents)
         self.gridLayout.addWidget(self.propertiesScrollArea, 0, 0, 1, 1)

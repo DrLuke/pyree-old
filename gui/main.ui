@@ -70,6 +70,9 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="workersDockWidget">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
    <property name="windowTitle">
     <string>Workers</string>
    </property>
@@ -182,6 +185,9 @@
    </widget>
   </widget>
   <widget class="QDockWidget" name="sheetsDockWidget">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
    <property name="windowTitle">
     <string>Sheets</string>
    </property>
@@ -270,6 +276,15 @@
    </widget>
   </widget>
   <widget class="QDockWidget" name="propertiesDockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>200</width>
+     <height>400</height>
+    </size>
+   </property>
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
    <property name="windowTitle">
     <string>Properties</string>
    </property>
@@ -288,7 +303,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>121</width>
+          <width>180</width>
           <height>552</height>
          </rect>
         </property>

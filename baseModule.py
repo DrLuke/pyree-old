@@ -274,6 +274,8 @@ class SubSheetImplementation(BaseImplementation):
 
         super(SubSheetImplementation, self).__init__(*args, **kwargs)
 
+        self.updateRuntime()
+
     def updateSubsheetRuntime(self):
         if self.currentSheet is not None and self.currentSheet in self.runtime.sheetdata:
             self.availableModules = self.runtime.availableModules
@@ -319,12 +321,26 @@ class SubSheetImplementation(BaseImplementation):
                     object.receiveNodedata(data)
 
     def execInit(self):
+        self.updateRuntime()
         if self.sheetInitId is not None and self.currentSheet is not None:
             self.sheetObjects[self.currentSheet][self.sheetInitId].fireExecOut()
+        self.fireExec("ExecInitOut")
 
     def execLoop(self):
+        self.updateRuntime()
         if self.sheetLoopId is not None and self.currentSheet is not None:
             self.sheetObjects[self.currentSheet][self.sheetLoopId].fireExecOut()
+        self.fireExec("ExecLoopOut")
+
+    def updateRuntime(self):
+        self.width = self.runtime.width
+        self.height = self.runtime.height
+
+        self.state = self.runtime.state
+        self.time = self.runtime.time
+        self.deltatime = self.runtime.deltatime
+
+        self.fbo = self.runtime.fbo
 
 
 class SubSheet(SimpleBlackbox):

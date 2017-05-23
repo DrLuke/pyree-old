@@ -1,6 +1,6 @@
 from baseModule import SimpleBlackbox, BaseImplementation, execType
 
-__nodes__ = ["IfThenElse"]
+__nodes__ = ["IfThenElse", "FileWatch"]
 
 
 class IfThenElseImplementation(BaseImplementation):
@@ -30,3 +30,22 @@ class IfThenElse(SimpleBlackbox):
 
         self.addOutput(execType, "true", "True")
         self.addOutput(execType, "false", "False")
+
+
+class FileWatchImplementation(BaseImplementation):
+    pass
+
+class FileWatch(SimpleBlackbox):
+    author = "DrLuke"
+    name = "Filewatch"
+    modulename = "drluke.builtin.filewatch"
+
+    Category = ["Builtin"]
+
+    placeable = True
+
+    implementation = IfThenElseImplementation
+
+    def defineIO(self):
+        self.addOutput(bool, "change", "File Changed")
+        self.addOutput(str, "file", "File content")

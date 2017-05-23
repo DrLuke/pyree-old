@@ -192,14 +192,35 @@ class glfwWorker:
         self.sheetLoopId = None
 
         # --- Runtime variables
+        self.width = 1
+        self.height = 1
+
         self.state = "stop"
         self.time = glfw.get_time()
         self.deltatime = 1
 
+        self.fbo = None
 
 
     def framebufferSizeCallback(self, window, width, height):
         glViewport(0, 0, width, height)
+        self.width = width
+        self.height = height
+
+        if self.fbo is not None:
+            glDeleteFramebuffers([self.fbo])
+        if self.fbotexture is not None:
+            glDeleteTextures([self.fbotexture])
+        self.fbo = glGenFramebuffers(1)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+        self.fbotexture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.fbotexture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.width, self.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, self.fbotexture, 0)
 
     def tick(self):
         self.time = glfw.get_time()
@@ -209,6 +230,7 @@ class glfwWorker:
 
             glfw.poll_events()
 
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
             glClearColor(0.2, 0.3, 0.3, 1.0)
             glClear(GL_COLOR_BUFFER_BIT)
 
@@ -296,7 +318,9 @@ class glfwWorker:
     def createWindow(self):
         self.videomode = glfw.get_video_mode(self.monitor)
         #self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", self.monitor, None)    # Fullscreen
-        self.window = glfw.create_window(500, 500, "Pyree Worker （´・ω・ `)", None, None) # windowed
+        self.window = glfw.create_window(500, 500, "Pyree Worker （´・ω・ `)", None, None)     # windowed
+
+        self.width, self.height = glfw.get_window_size(self.window)
 
         #glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
 
@@ -307,6 +331,17 @@ class glfwWorker:
         glfw.make_context_current(self.window)
 
         glfw.set_framebuffer_size_callback(self.window, self.framebufferSizeCallback)
+
+        self.fbo = glGenFramebuffers(1)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+        self.fbotexture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.fbotexture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.width, self.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, self.fbotexture, 0)
 
     def closeWindow(self):
         glfw.destroy_window(self.window)

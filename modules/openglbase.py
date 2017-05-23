@@ -16,7 +16,7 @@ import traceback
 
 from baseModule import SimpleBlackbox, BaseImplementation, execType
 
-__nodes__ = ["FullScreenQuad", "ShaderProgram", "RenderVao"]
+__nodes__ = ["FullScreenQuad", "ShaderProgram", "RenderVao", "RenderFBO"]
 
 class vboVaoContainer:
     def __init__(self, vbo, vao, tricount):
@@ -90,7 +90,7 @@ class ShaderProgramImplementation(BaseImplementation):
                 #version 330 core
                 in vec3 ourColor;
                 in vec2 ourTexcoord;
-                out vec4 outColor;
+                layout(location = 0) out vec4 outColor;
                 void main()
                 {
                     outColor = vec4(ourColor.r, ourColor.g, ourColor.b, 1.0);
@@ -172,6 +172,9 @@ class RenderVaoImplementation(BaseImplementation):
         pass
 
     def render(self):
+        fbo = self.runtime.fbo
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo)
+
         vboVaoContainer = self.getReturnOfFirstFunction("vaoin")
         shaderProgram = self.getReturnOfFirstFunction("shaderprogramin")
         uniforms = self.getReturnOfFirstFunction("uniformsin")
@@ -203,3 +206,130 @@ class RenderVao(SimpleBlackbox):
         self.addInput(vboVaoContainer, "vaoin", "Vao")
         self.addInput(shaders.ShaderProgram, "shaderprogramin", "Shader Program")
         self.addInput(str, "uniformsin", "Uniforms")
+
+class RenderFboImplementation(BaseImplementation):
+    def init(self):
+        vertices = np.array([
+            # X     Y     Z    R    G    B    U    V
+            [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0],  # Top right
+            [-1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0, 1.0],  # Top Left
+            [1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0],  # Bottom Right
+            [-1.0, -1.0, 0.0, 1.0, 1.0, 0.0, 0, 0],  # Bottom Left
+            [1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0],  # Bottom Right
+            [-1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0, 1.0]  # Top Left
+        ], 'f')
+
+        # Generate vertex buffer object and fill it with vertex data from above
+        self.vbo = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
+        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+
+        # Generate vertex array object and pass vertex data into it
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+
+        # XYZ
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * vertices.itemsize, None)
+        glEnableVertexAttribArray(0)
+
+        # RGB
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
+        glEnableVertexAttribArray(1)
+
+        # UV
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * vertices.itemsize, ctypes.c_void_p(6 * vertices.itemsize))
+        glEnableVertexAttribArray(2)
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glBindVertexArray(0)
+
+        self.fragmentShader = 0
+        self.vertexShader = 0
+        self.shaderProgram = None
+
+        self.defaultFragmentShaderCode = """
+                        #version 330 core
+                        in vec3 ourColor;
+                        in vec2 ourTexcoord;
+                        out vec4 outColor;
+                        uniform sampler2D texIn;
+                        void main()
+                        {
+                            outColor = texture(texIn, ourTexcoord);
+                        }
+                        """
+
+        self.defaultVertexShaderCode = """
+                        #version 330 core
+                        layout (location = 0) in vec3 position;
+                        layout (location = 1) in vec3 color;
+                        layout (location = 2) in vec2 texcoord;
+                        out vec3 ourColor;
+                        out vec2 ourTexcoord;
+                        void main()
+                        {
+                            gl_Position = vec4(position.x, position.y, position.z, 1.0);
+
+                            ourColor = vec3(0.0);
+                            ourTexcoord = texcoord;
+                        }
+                        """
+
+
+
+        vertexCode = self.defaultVertexShaderCode
+        fragmentCode = self.defaultFragmentShaderCode
+
+        self.vertexShaderCode = vertexCode
+        self.fragmentShaderCode = fragmentCode
+
+        try:
+            self.fragmentShader = shaders.compileShader(self.fragmentShaderCode, GL_FRAGMENT_SHADER)
+        except:
+            print(traceback.print_exc())
+            self.fragmentShader = shaders.compileShader(self.defaultFragmentShaderCode, GL_FRAGMENT_SHADER)
+
+        try:
+            self.vertexShader = shaders.compileShader(self.vertexShaderCode, GL_VERTEX_SHADER)
+        except:
+            print(traceback.print_exc())
+            self.vertexShader = shaders.compileShader(self.defaultVertexShaderCode, GL_VERTEX_SHADER)
+
+        # -- Generate Shader program
+        if isinstance(self.fragmentShader, int) and isinstance(self.vertexShader, int):
+            self.shaderProgram = shaders.compileProgram(self.fragmentShader, self.vertexShader)
+
+    def render(self):
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+        if self.shaderProgram is not None:
+            glUseProgram(self.shaderProgram)
+
+
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, self.runtime.fbotexture)
+            glUniform1i(glGetUniformLocation(self.shaderProgram, "texIn"), 0)
+
+            glBindVertexArray(self.vao)
+            glDrawArrays(GL_TRIANGLES, 0, 2 * 3)
+            glBindVertexArray(0)
+
+
+
+    def defineIO(self):
+        self.registerFunc("render", self.render)
+
+class RenderFBO(SimpleBlackbox):
+    author = "DrLuke"
+    name = "Render FBO"
+    modulename = "drluke.opengl.renderfbo"
+
+    Category = ["OpenGL"]
+
+    placeable = True
+
+    implementation = RenderFboImplementation
+
+    def defineIO(self):
+        self.addInput(execType, "render", "Render")
+        self.addOutput(execType, "execOut", "Exec Out")

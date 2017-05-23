@@ -187,6 +187,8 @@ class RenderVaoImplementation(BaseImplementation):
             glDrawArrays(GL_TRIANGLES, 0, vboVaoContainer.tricount * 3)
             glBindVertexArray(0)
 
+        self.fireExec("execout")
+
     def defineIO(self):
         self.registerFunc("render", self.render)
 
@@ -206,6 +208,8 @@ class RenderVao(SimpleBlackbox):
         self.addInput(vboVaoContainer, "vaoin", "Vao")
         self.addInput(shaders.ShaderProgram, "shaderprogramin", "Shader Program")
         self.addInput(str, "uniformsin", "Uniforms")
+
+        self.addOutput(execType, "execout", "Exec Out")
 
 class RenderFboImplementation(BaseImplementation):
     def init(self):

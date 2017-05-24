@@ -200,6 +200,8 @@ class glfwWorker:
         self.deltatime = 1
 
         self.fbo = None
+        self.fbotexture = None
+        self.monitorname = bytes.decode(glfw.get_monitor_name(self.monitor))
 
 
     def framebufferSizeCallback(self, window, width, height):
@@ -223,8 +225,6 @@ class glfwWorker:
         glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, self.fbotexture, 0)
 
     def tick(self):
-        self.time = glfw.get_time()
-
         if self.state == "play" and self.window is not None:
             glfw.make_context_current(self.window)
 

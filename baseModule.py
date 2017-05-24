@@ -341,6 +341,9 @@ class SubSheetImplementation(BaseImplementation):
         self.deltatime = self.runtime.deltatime
 
         self.fbo = self.runtime.fbo
+        self.fbotexture = self.runtime.fbotexture
+
+        self.monitorname = self.runtime.monitorname
 
 
 class SubSheet(SimpleBlackbox):

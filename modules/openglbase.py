@@ -7,6 +7,7 @@ import OpenGL
 from OpenGL.GL.ARB.framebuffer_object import *
 from OpenGL.GL.EXT.framebuffer_object import *
 
+from PyQt5.QtWidgets import QWidget, QListWidget, QListWidgetItem, QSpacerItem, QVBoxLayout, QSizePolicy, QDoubleSpinBox
 
 from baseModule import SimpleBlackbox
 
@@ -26,6 +27,9 @@ class vboVaoContainer:
 
 class FullScreenQuadImplementation(BaseImplementation):
     def init(self):
+        self.uvxoffset = 0
+        self.uvyoffset = 0
+
         vertices = np.array([
             # X     Y     Z    R    G    B    U    V
             [1.0,  1.0,  0.0, 1.0, 1.0, 1.0, 1.0, 1.0],  # Top right
@@ -65,6 +69,26 @@ class FullScreenQuadImplementation(BaseImplementation):
     def defineIO(self):
         self.registerFunc("vbovaoout", lambda: self.container)
 
+    def receiveNodedata(self, data):
+        if "xoffset" in data:
+            self.uvxoffset = data["xoffset"]
+        if "yoffset" in data:
+            self.uvyoffset = data["yoffset"]
+
+        if self.vbo:
+            vertices = np.array([
+                # X     Y     Z    R    G    B    U    V
+                [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 + self.uvxoffset, 1.0 + self.uvyoffset],  # Top right
+                [-1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0 + self.uvxoffset, 1.0 + self.uvyoffset],  # Top Left
+                [1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0 + self.uvxoffset, 0 + self.uvyoffset],  # Bottom Right
+                [-1.0, -1.0, 0.0, 1.0, 1.0, 0.0, 0 + self.uvxoffset, 0 + self.uvyoffset],  # Bottom Left
+                [1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0 + self.uvxoffset, 0 + self.uvyoffset],  # Bottom Right
+                [-1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0 + self.uvxoffset, 1.0 + self.uvyoffset]  # Top Left
+            ], 'f')
+
+            glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
+            glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
+
 class FullScreenQuad(SimpleBlackbox):
     author = "DrLuke"
     name = "Fullscreen Quad"
@@ -76,9 +100,47 @@ class FullScreenQuad(SimpleBlackbox):
 
     implementation = FullScreenQuadImplementation
 
+    def __init__(self, *args, **kwargs):
+        super(FullScreenQuad, self).__init__(*args, **kwargs)
+
+        self.propertiesWidget = QWidget()
+
+        self.vlayout = QVBoxLayout()
+
+        self.xoffsetWidget = QDoubleSpinBox()
+        self.xoffsetWidget.setMaximum(9999)
+        self.xoffsetWidget.setMinimum(-9999)
+        self.yoffsetWidget = QDoubleSpinBox()
+        self.yoffsetWidget.setMaximum(9999)
+        self.yoffsetWidget.setMinimum(-9999)
+        self.vlayout.addWidget(self.xoffsetWidget)
+        self.vlayout.addWidget(self.yoffsetWidget)
+
+        self.xoffsetWidget.valueChanged.connect(self.offsetchange)
+        self.yoffsetWidget.valueChanged.connect(self.offsetchange)
+
+        self.vlayout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        self.propertiesWidget.setLayout(self.vlayout)
+
+
     def defineIO(self):
         self.addOutput(vboVaoContainer, "vbovaoout", "Quad Out")
 
+    def offsetchange(self, value):
+        self.sendDataToImplementations({"xoffset": self.xoffsetWidget.value(), "yoffset": self.yoffsetWidget.value()})
+
+    def serialize(self):
+        return {"xoffset": self.xoffsetWidget.value(), "yoffset": self.yoffsetWidget.value()}
+
+    def deserialize(self, data):
+        if "xoffset" in data:
+            self.xoffsetWidget.setValue(data["xoffset"])
+        if "yoffset" in data:
+            self.yoffsetWidget.setValue(data["yoffset"])
+
+    def getPropertiesWidget(self):
+        return self.propertiesWidget
 
 class ShaderProgramImplementation(BaseImplementation):
     def init(self):
@@ -182,6 +244,23 @@ class RenderVaoImplementation(BaseImplementation):
 
         if vboVaoContainer is not None and shaderProgram is not None:
             glUseProgram(shaderProgram)
+
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, self.runtime.fbotexture)
+            glUniform1i(glGetUniformLocation(shaderProgram, "texIn"), 0)
+
+            # Uniforms
+            uniformLoc = glGetUniformLocation(shaderProgram, "t")
+            if not uniformLoc == -1:
+                glUniform1f(uniformLoc, self.runtime.time)
+
+            uniformLoc = glGetUniformLocation(shaderProgram, "dt")
+            if not uniformLoc == -1:
+                glUniform1f(uniformLoc, self.runtime.deltatime)
+
+            uniformLoc = glGetUniformLocation(shaderProgram, "res")
+            if not uniformLoc == -1:
+                glUniform2f(uniformLoc, self.runtime.width, self.runtime.height)
 
             glBindVertexArray(vboVaoContainer.vao)
             glDrawArrays(GL_TRIANGLES, 0, vboVaoContainer.tricount * 3)

@@ -7,7 +7,7 @@ import OpenGL
 from OpenGL.GL.ARB.framebuffer_object import *
 from OpenGL.GL.EXT.framebuffer_object import *
 
-from PyQt5.QtWidgets import QWidget, QListWidget, QListWidgetItem, QSpacerItem, QVBoxLayout, QSizePolicy, QDoubleSpinBox
+from PyQt5.QtWidgets import QWidget, QListWidget, QListWidgetItem, QSpacerItem, QVBoxLayout, QSizePolicy, QDoubleSpinBox, QLineEdit
 
 from baseModule import SimpleBlackbox
 
@@ -17,7 +17,7 @@ import traceback
 
 from baseModule import SimpleBlackbox, BaseImplementation, execType
 
-__nodes__ = ["FullScreenQuad", "ShaderProgram", "RenderVao", "RenderFBO"]
+__nodes__ = ["FullScreenQuad", "ShaderProgram", "RenderVao", "RenderFBO", "UniformContainer"]
 
 class vboVaoContainer:
     def __init__(self, vbo, vao, tricount):
@@ -201,7 +201,10 @@ class ShaderProgramImplementation(BaseImplementation):
 
         # -- Generate Shader program
         if isinstance(self.fragmentShader, int) and isinstance(self.vertexShader, int):
-            self.shaderProgram = shaders.compileProgram(self.fragmentShader, self.vertexShader)
+            try:
+                self.shaderProgram = shaders.compileProgram(self.fragmentShader, self.vertexShader)
+            except:
+                pass
 
         self.fireExec("execout")
 
@@ -266,6 +269,14 @@ class RenderVaoImplementation(BaseImplementation):
             glDrawArrays(GL_TRIANGLES, 0, vboVaoContainer.tricount * 3)
             glBindVertexArray(0)
 
+            uniformsin = self.getReturnOfFirstFunction("uniformsin")
+            if type(uniformsin) is dict:
+                for uniformname in uniformsin:
+                    uniformLoc = glGetUniformLocation(shaderProgram, uniformname)
+                    if type(uniformsin[uniformname]) is int or type(uniformsin[uniformname]) is float:
+                        if not uniformLoc == -1:
+                            glUniform1f(uniformLoc, uniformsin[uniformname])
+
         self.fireExec("execout")
 
     def defineIO(self):
@@ -286,7 +297,7 @@ class RenderVao(SimpleBlackbox):
         self.addInput(execType, "render", "Render")
         self.addInput(vboVaoContainer, "vaoin", "Vao")
         self.addInput(shaders.ShaderProgram, "shaderprogramin", "Shader Program")
-        self.addInput(str, "uniformsin", "Uniforms")
+        self.addInput(dict, "uniformsin", "Uniforms")
 
         self.addOutput(execType, "execout", "Exec Out")
 
@@ -416,3 +427,70 @@ class RenderFBO(SimpleBlackbox):
     def defineIO(self):
         self.addInput(execType, "render", "Render")
         self.addOutput(execType, "execOut", "Exec Out")
+
+class UniformContainerImplementation(BaseImplementation):
+    def init(self):
+        self.value = ""
+
+    def defineIO(self):
+        self.registerFunc("contout", self.getContainer)
+
+    def receiveNodedata(self, data):
+        self.value = data
+
+    def getContainer(self):
+        contin = self.getReturnOfFirstFunction("contin")
+        valin = self.getReturnOfFirstFunction("valin")
+        if type(contin) is dict and valin is not None:
+            contin[self.value] = valin
+            return contin
+        else:
+            return {self.value: valin}
+
+class UniformContainer(SimpleBlackbox):
+    author = "DrLuke"
+    name = "Uniform Container"
+    modulename = "drluke.builtin.uniformcontainer"
+
+    Category = ["OpenGL"]
+
+    placeable = True
+
+    implementation = UniformContainerImplementation
+
+    def __init__(self, *args, **kwargs):
+        super(UniformContainer, self).__init__(*args, **kwargs)
+
+        self.text = ""
+
+        self.propertiesWidget = QWidget()
+
+        self.vlayout = QVBoxLayout()
+        self.lineEdit = QLineEdit()
+        self.lineEdit.textChanged.connect(self.textChanged)
+
+        self.vlayout.addWidget(self.lineEdit)
+        self.vlayout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        self.propertiesWidget.setLayout(self.vlayout)
+
+    def textChanged(self, text):
+        self.text = text
+        self.sendDataToImplementations(text)
+
+    def getPropertiesWidget(self):
+        return self.propertiesWidget
+
+    def defineIO(self):
+        self.addInput(dict, "contin", "Container in")
+        self.addInput([float, int, list], "valin", "Value in")
+
+        self.addOutput(dict, "contout", "Container out")
+
+    def serialize(self):
+        return self.text
+
+    def deserialize(self, data):
+        if type(data) is str:
+            self.text = data
+            self.lineEdit.setText(self.text)

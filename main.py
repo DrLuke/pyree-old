@@ -192,7 +192,7 @@ class PyreeProject():
             data["sheets"].append(self.sheets[sheetid].serialize())
 
         with open(path, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, sort_keys=True, indent=4, separators=(',', ': '))
 
     def newSheet(self, listItem, data=None):
         """Create a new sheet and store it in sheets"""

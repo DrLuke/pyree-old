@@ -1,10 +1,10 @@
 from baseModule import SimpleBlackbox, BaseImplementation, execType
 
 from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QCheckBox, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QCheckBox, QSpacerItem, QSizePolicy, QDoubleSpinBox
 import os
 
-__nodes__ = ["IfThenElse", "FileWatch", "MonitorName", "Compare", "Bool", "String"]
+__nodes__ = ["IfThenElse", "FileWatch", "MonitorName", "Compare", "Bool", "String", "Float"]
 
 
 class IfThenElseImplementation(BaseImplementation):
@@ -261,3 +261,57 @@ class String(SimpleBlackbox):
         if type(data) is str:
             self.text = data
             self.lineEdit.setText(self.text)
+
+class FloatImplementation(BaseImplementation):
+    def init(self):
+        self.value = True
+
+    def defineIO(self):
+        self.registerFunc("valout", lambda: self.value)
+
+    def receiveNodedata(self, data):
+        self.value = data
+
+class Float(SimpleBlackbox):
+    author = "DrLuke"
+    name = "Float"
+    modulename = "drluke.builtin.float"
+
+    Category = ["Builtin"]
+
+    placeable = True
+
+    implementation = FloatImplementation
+
+    def __init__(self, *args, **kwargs):
+        super(Float, self).__init__(*args, **kwargs)
+
+        self.propertiesWidget = QWidget()
+
+        self.vlayout = QVBoxLayout()
+        self.spinbox = QDoubleSpinBox()
+        self.spinbox.setMaximum(9999)
+        self.spinbox.setMinimum(-9999)
+
+        self.spinbox.valueChanged.connect(self.dataChanged)
+
+        self.vlayout.addWidget(self.spinbox)
+        self.vlayout.addItem(QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        self.propertiesWidget.setLayout(self.vlayout)
+
+    def dataChanged(self, value):
+        self.sendDataToImplementations(value)
+
+    def getPropertiesWidget(self):
+        return self.propertiesWidget
+
+    def defineIO(self):
+        self.addOutput(float, "valout", "Value Out")
+
+    def serialize(self):
+        return self.spinbox.value()
+
+    def deserialize(self, data):
+        self.spinbox.setValue(data)
+        self.dataChanged(data)

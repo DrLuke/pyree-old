@@ -302,7 +302,10 @@ class SubSheetImplementation(BaseImplementation):
                     if not nodeExists:
                         dellist.append(nodeId)
                 for delid in dellist:
-                    del self.sheetObjects[sheetId][delid]
+                    try:
+                        del self.sheetObjects[sheetId][delid]
+                    except KeyError:
+                        print("yet another KEYERROR: sheetid %s  nodeid %s" % (sheetId, delid))
 
             if self.currentSheet:
                 self.sheetInitId = None

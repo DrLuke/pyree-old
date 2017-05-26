@@ -89,6 +89,8 @@ class FullScreenQuadImplementation(BaseImplementation):
             glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
             glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
 
+        self.container.vbo = self.vbo
+
 class FullScreenQuad(SimpleBlackbox):
     author = "DrLuke"
     name = "Fullscreen Quad"
@@ -265,17 +267,22 @@ class RenderVaoImplementation(BaseImplementation):
             if not uniformLoc == -1:
                 glUniform2f(uniformLoc, self.runtime.width, self.runtime.height)
 
-            glBindVertexArray(vboVaoContainer.vao)
-            glDrawArrays(GL_TRIANGLES, 0, vboVaoContainer.tricount * 3)
-            glBindVertexArray(0)
+            #glBindBuffer(GL_ARRAY_BUFFER, vboVaoContainer.vbo)
+            try:
+                glBindVertexArray(vboVaoContainer.vao)
+                glDrawArrays(GL_TRIANGLES, 0, vboVaoContainer.tricount * 3)
+                glBindVertexArray(0)
 
-            uniformsin = self.getReturnOfFirstFunction("uniformsin")
-            if type(uniformsin) is dict:
-                for uniformname in uniformsin:
-                    uniformLoc = glGetUniformLocation(shaderProgram, uniformname)
-                    if type(uniformsin[uniformname]) is int or type(uniformsin[uniformname]) is float:
-                        if not uniformLoc == -1:
-                            glUniform1f(uniformLoc, uniformsin[uniformname])
+                uniformsin = self.getReturnOfFirstFunction("uniformsin")
+                if type(uniformsin) is dict:
+                    for uniformname in uniformsin:
+                        if uniformname:
+                            uniformLoc = glGetUniformLocation(shaderProgram, uniformname)
+                            if type(uniformsin[uniformname]) is int or type(uniformsin[uniformname]) is float:
+                                if not uniformLoc == -1:
+                                    glUniform1f(uniformLoc, uniformsin[uniformname])
+            except:
+                print("That weird exception again")
 
         self.fireExec("execout")
 

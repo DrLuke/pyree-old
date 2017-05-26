@@ -11,6 +11,9 @@ uniform float t;
 uniform float colorangle;
 uniform float unitest;
 
+uniform float yoffset;
+uniform float xoffset;
+
 uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform sampler2D iChannel2;
@@ -28,7 +31,7 @@ void main() {
 
 }
 
-#define MARCHLIMIT 70
+#define MARCHLIMIT 100
 
 vec3 camPos = vec3(0.0, 0.0, -1.0);
 vec3 ld = vec3(0.0, 0.0, 1.0);
@@ -91,6 +94,8 @@ vec4 march(vec3 cam, vec3 n)
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 	vec2 uv = (ourTexcoord*2.0) - vec2(1, 1);
+	uv.x += xoffset;
+	uv.y += yoffset;
     uv.y *= iResolution.y / iResolution.x;
 
     float rotangle = iGlobalTime*0.08;

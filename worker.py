@@ -317,12 +317,15 @@ class glfwWorker:
 
     def createWindow(self):
         self.videomode = glfw.get_video_mode(self.monitor)
-        #self.window = glfw.create_window(100, 100, "Pyree Worker （´・ω・ `)", self.monitor, None)    # Fullscreen
-        self.window = glfw.create_window(500, 500, "Pyree Worker （´・ω・ `)", None, None)     # windowed
+        self.window = glfw.create_window(1920, 1080, "Pyree Worker （´・ω・ `)", self.monitor, None)    # Fullscreen
+        #self.window = glfw.create_window(500, 500, "Pyree Worker （´・ω・ `)", None, None)     # windowed
 
         self.width, self.height = glfw.get_window_size(self.window)
 
-        #glfw.set_window_size(self.window, self.videomode[0][0], self.videomode[0][1])
+        print(self.monitor)
+        print(bytes.decode(glfw.get_monitor_name(self.monitor)))
+
+        #glfw.set_window_size(self.window, 1920, 1080)
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
